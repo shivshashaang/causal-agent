@@ -64,6 +64,16 @@ Last updated: 2026-11-16
       The test is calibrated: 60 of 1,200 null tests rejected on fresh
       randomized data.
 
+- **Steps 4 to 6, agent, no-tools baseline and evaluation.** On branch
+  `step-4-agent-eval`, stacked on `step-2-baseline-tools` (neither pushed).
+  The owner replied "continue" to the checkpoint 2 report without answering
+  its three questions, so the no-change options are in force until the owner
+  says otherwise: no new refuter, nonlinear functions untouched, `dowhy`
+  left in place.
+  - `config.py`: `Settings` (model `claude-haiku-5-5`, 8-step cap, tolerance
+    0.10 SD with sensitivity 0.05/0.10/0.20, paths) and `load_api_key`, which
+    reads `AGENT_LLM_KEY` only.
+
 ## Verification status
 
 - CI passed on PR #1 and PR #2. PR #2 ran all 505 tests on Linux, so the

@@ -79,6 +79,8 @@ Last updated: 2026-11-16
   - `agent/summary.py`: deterministic text summary of the public data
     (column statistics, means by treatment group, correlations). The agent
     and the no-tools baseline both receive exactly this.
+  - `agent/answer.py`: the final-answer JSON format (estimate, estimator,
+    adjustment set) and a lenient parser shared by both LLM approaches.
 
 ## Verification status
 

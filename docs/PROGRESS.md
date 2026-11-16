@@ -31,6 +31,12 @@ Last updated: 2026-11-16
   trap. Extra tests on M-bias, mediator and chain graphs show the checker is
   a real backdoor check, not a lookup.
 
+- Step 1, part 4a: `bench/public.py` with `PublicDataset`, `ColumnInfo`,
+  `Timing` and `load_public`. It is the only bench module agent and tool
+  code may import. Dataset IDs are validated so an ID cannot be a path into
+  the truth directory. A test in a fresh interpreter confirms importing it
+  loads no private module.
+
 ## Verification status
 
 - GitHub Actions CI passed on PR #1 (lint, format check, 1 test) before the
@@ -41,8 +47,10 @@ Last updated: 2026-11-16
 
 ## Next
 
-1. Step 1, part 4: public and private metadata separation and the loaders.
-2. Checkpoint 1: stop for the owner's review once the generator and metadata
+1. Step 1, part 4b: `bench/truth.py` (private ground truth and its loader).
+2. Step 1, part 4c: `bench/generate.py` (assemble frame, public metadata and
+   truth; write the benchmark to disk; isolation tests).
+3. Checkpoint 1: stop for the owner's review once the generator and metadata
    are complete.
 
 Do not start the agent, tools, or evaluation pipeline until step 1 is done.

@@ -24,6 +24,13 @@ Last updated: 2026-11-16
   rule without lowering any knob (lowest share of propensities inside
   [0.05, 0.95] was 93.6%).
 
+- Step 1, part 3: `bench/graph.py` with the true causal graph built from a
+  spec, column roles derived from the graph, and the backdoor adjustment-set
+  check (networkx d-separation). Valid sets match the hand-derived table in
+  ADR 001 on all 30 specs: 16 for randomized, 4 for confounded, 2 for the
+  trap. Extra tests on M-bias, mediator and chain graphs show the checker is
+  a real backdoor check, not a lookup.
+
 ## Verification status
 
 - GitHub Actions CI passed on PR #1 (lint, format check, 1 test) before the
@@ -34,10 +41,8 @@ Last updated: 2026-11-16
 
 ## Next
 
-1. Step 1, part 3: the true causal graph, column roles, and the backdoor
-   adjustment-set check.
-2. Step 1, part 4: public and private metadata separation and the loaders.
-3. Checkpoint 1: stop for the owner's review once the generator and metadata
+1. Step 1, part 4: public and private metadata separation and the loaders.
+2. Checkpoint 1: stop for the owner's review once the generator and metadata
    are complete.
 
 Do not start the agent, tools, or evaluation pipeline until step 1 is done.

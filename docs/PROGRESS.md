@@ -48,6 +48,11 @@ Last updated: 2026-11-16
     `doubly_robust`. `ASSUMPTIONS` states what each one relies on. Only
     weighting represents the "logistic propensity" family; matching is not
     implemented.
+  - `tools/estimate_effect.py`: typed tool. Input: dataset ID, estimator,
+    adjustment set. Output echoes both, adds the estimate, standard error,
+    95% interval, diagnostics, warnings and the estimator's assumptions. It
+    does not block any covariate, including the post-outcome column: choosing
+    the adjustment set is the caller's job.
   - Discovery notes, continued:
     - Measured on the 30 datasets at alpha 0.05: 3 of 6 randomized datasets
       show one chance covariate-treatment edge (p = 0.047, 0.009, 0.039).
@@ -64,9 +69,8 @@ Last updated: 2026-11-16
 
 ## Next
 
-1. `tools/estimate_effect.py` (typed wrapper around the estimators).
-2. `tools/refute_estimate.py`.
-3. Checkpoint 2: stop and report, including the fixed pipeline's measured
+1. `tools/refute_estimate.py`.
+2. Checkpoint 2: stop and report, including the fixed pipeline's measured
    performance on the 30 datasets. Do not start the LLM agent before the
    owner reviews.
 

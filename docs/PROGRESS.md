@@ -90,6 +90,9 @@ Last updated: 2026-11-16
     call is recorded with input, output and error. The system prompt gives no
     rule about which columns to adjust for. Tested with a scripted model
     only; no real API call has been made yet.
+  - `agent/no_tools.py`: the no-tools baseline. Same model, same summary, no
+    tools, one call plus at most one repair request. Its estimator and
+    adjustment set are self-reported.
 
 ## Verification status
 

@@ -37,6 +37,11 @@ Last updated: 2026-11-16
   the truth directory. A test in a fresh interpreter confirms importing it
   loads no private module.
 
+- Step 1, part 4b: `bench/truth.py` with `GroundTruth`, `Assumptions`,
+  `Diagnostics`, `build_truth` and `load_truth`. Truth uses public column
+  names. Valid adjustment sets are computed from the graph and stored; the
+  three assumption flags are derived from the knobs.
+
 ## Verification status
 
 - GitHub Actions CI passed on PR #1 (lint, format check, 1 test) before the
@@ -47,10 +52,9 @@ Last updated: 2026-11-16
 
 ## Next
 
-1. Step 1, part 4b: `bench/truth.py` (private ground truth and its loader).
-2. Step 1, part 4c: `bench/generate.py` (assemble frame, public metadata and
+1. Step 1, part 4c: `bench/generate.py` (assemble frame, public metadata and
    truth; write the benchmark to disk; isolation tests).
-3. Checkpoint 1: stop for the owner's review once the generator and metadata
+2. Checkpoint 1: stop for the owner's review once the generator and metadata
    are complete.
 
 Do not start the agent, tools, or evaluation pipeline until step 1 is done.

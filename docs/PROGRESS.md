@@ -28,6 +28,11 @@ Last updated: 2026-11-16
     scikit-learn histogram gradient boosting, out-of-fold nuisance
     predictions, propensity clipping to [0.01, 0.99], fixed seeds. The module
     docstring records its assumptions and limitations.
+  - `agent/fixed_pipeline.py`: the fixed-pipeline baseline. Adjusts for every
+    covariate labelled `pre_treatment` in the public metadata and estimates
+    with AIPW. Tested against a directory that has no truth files.
+    `agent/` holds all three approaches (agent loop and both baselines) so
+    the existing import scan covers them.
 
 ## Verification status
 
@@ -39,12 +44,10 @@ Last updated: 2026-11-16
 
 ## Next
 
-1. `agent/fixed_pipeline.py`: all pre-treatment covariates with AIPW, using
-   only public metadata.
-2. `tools/discover_graph.py`.
-3. `tools/estimators.py` then `tools/estimate_effect.py`.
-4. `tools/refute_estimate.py`.
-5. Checkpoint 2: stop and report, including the fixed pipeline's measured
+1. `tools/discover_graph.py`.
+2. `tools/estimators.py` then `tools/estimate_effect.py`.
+3. `tools/refute_estimate.py`.
+4. Checkpoint 2: stop and report, including the fixed pipeline's measured
    performance on the 30 datasets. Do not start the LLM agent before the
    owner reviews.
 

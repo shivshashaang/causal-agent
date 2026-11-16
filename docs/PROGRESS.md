@@ -42,6 +42,13 @@ Last updated: 2026-11-16
       column and dropped real confounder-treatment edges (3 of 24 confounded
       datasets, and the confounder-outcome edges on 2 trap datasets). With
       tiers, both confounders are found on all 24.
+  - `tools/estimators.py`: `difference_in_means` (always the empty set),
+    `linear_regression` (OLS), `propensity_weighting` (logistic propensity,
+    normalized weights, clipping) and a dispatcher that also runs
+    `doubly_robust`. `ASSUMPTIONS` states what each one relies on. Only
+    weighting represents the "logistic propensity" family; matching is not
+    implemented.
+  - Discovery notes, continued:
     - Measured on the 30 datasets at alpha 0.05: 3 of 6 randomized datasets
       show one chance covariate-treatment edge (p = 0.047, 0.009, 0.039).
       The test is calibrated: 60 of 1,200 null tests rejected on fresh
@@ -57,7 +64,7 @@ Last updated: 2026-11-16
 
 ## Next
 
-1. `tools/estimators.py` then `tools/estimate_effect.py`.
+1. `tools/estimate_effect.py` (typed wrapper around the estimators).
 2. `tools/refute_estimate.py`.
 3. Checkpoint 2: stop and report, including the fixed pipeline's measured
    performance on the 30 datasets. Do not start the LLM agent before the

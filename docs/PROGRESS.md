@@ -93,6 +93,16 @@ Last updated: 2026-11-16
   - `agent/no_tools.py`: the no-tools baseline. Same model, same summary, no
     tools, one call plus at most one repair request. Its estimator and
     adjustment set are self-reported.
+  - `eval/score.py`: scores one answer against ground truth. Accuracy
+    (within a multiple of the outcome SD) and validity are separate. Validity
+    records adjustment-set validity, outcome-model correctness,
+    propensity-model correctness, the chosen estimator's own assumption, and
+    overlap. For the doubly robust estimator the model-fit assumption is
+    recorded as unknown, never as guaranteed.
+  - First real API calls (one dataset, `ds_001`): the request shape works.
+    The no-tools model solved a regression by hand from the correlation
+    table and landed within tolerance, so the shared summary is informative
+    enough for that baseline to be strong on linear data.
 
 ## Verification status
 

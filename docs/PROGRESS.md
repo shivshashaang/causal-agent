@@ -33,6 +33,19 @@ Last updated: 2026-11-16
     with AIPW. Tested against a directory that has no truth files.
     `agent/` holds all three approaches (agent loop and both baselines) so
     the existing import scan covers them.
+  - `tools/discover_graph.py`: PC with Fisher-z tests from causal-learn, run
+    once per timing tier so that a pair of columns is never tested by
+    conditioning on a later column. Edges across tiers are directed by timing
+    and marked `timing`; same-tier orientations from PC are marked `data`;
+    the rest stay undirected. A fixed list of caveats is part of the output.
+    - Why tiers: plain PC conditioned on the outcome and the post-outcome
+      column and dropped real confounder-treatment edges (3 of 24 confounded
+      datasets, and the confounder-outcome edges on 2 trap datasets). With
+      tiers, both confounders are found on all 24.
+    - Measured on the 30 datasets at alpha 0.05: 3 of 6 randomized datasets
+      show one chance covariate-treatment edge (p = 0.047, 0.009, 0.039).
+      The test is calibrated: 60 of 1,200 null tests rejected on fresh
+      randomized data.
 
 ## Verification status
 
@@ -44,10 +57,9 @@ Last updated: 2026-11-16
 
 ## Next
 
-1. `tools/discover_graph.py`.
-2. `tools/estimators.py` then `tools/estimate_effect.py`.
-3. `tools/refute_estimate.py`.
-4. Checkpoint 2: stop and report, including the fixed pipeline's measured
+1. `tools/estimators.py` then `tools/estimate_effect.py`.
+2. `tools/refute_estimate.py`.
+3. Checkpoint 2: stop and report, including the fixed pipeline's measured
    performance on the 30 datasets. Do not start the LLM agent before the
    owner reviews.
 

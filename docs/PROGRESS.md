@@ -76,6 +76,9 @@ Last updated: 2026-11-16
   - `agent/llm.py`: `AnthropicClient` (raw SDK, key passed explicitly) and
     `CachedLLM`, a disk cache keyed by a hash of the whole request. A fully
     cached run needs no key. Thinking blocks are replayed unchanged.
+  - `agent/summary.py`: deterministic text summary of the public data
+    (column statistics, means by treatment group, correlations). The agent
+    and the no-tools baseline both receive exactly this.
 
 ## Verification status
 

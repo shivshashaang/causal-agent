@@ -81,6 +81,10 @@ Last updated: 2026-11-16
     and the no-tools baseline both receive exactly this.
   - `agent/answer.py`: the final-answer JSON format (estimate, estimator,
     adjustment set) and a lenient parser shared by both LLM approaches.
+  - `agent/toolbox.py`: the three tool definitions sent to the model (JSON
+    schemas generated from the pydantic input models, minus `dataset_id`)
+    and `execute_tool`. The loop fixes the dataset; the model cannot pass
+    one. Bad calls come back as readable error results.
 
 ## Verification status
 

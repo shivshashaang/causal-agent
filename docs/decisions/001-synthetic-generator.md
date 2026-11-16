@@ -51,16 +51,40 @@ covariates published as `x1..x4` in shuffled order.
 
 - `T ~ Bernoulli(sigmoid(a · h(C)))`
 - `Y = τ·T + b · g(C) + d · p + σ · noise`
-- `k = γ · (T + standardized Y) + noise` (trap only; drawn last so it cannot
-  change `T` or `Y`)
-- `h(C) = linear(C) + λ_T · nonlinear_T(C)`, rescaled to unit variance
-- `g(C) = linear(C) + λ_Y · nonlinear_Y(C)`, rescaled to unit variance
+- `k = γ · (T + (Y − μ_Y)/sd_Y) + noise` (trap only; drawn last so it cannot
+  change `T` or `Y`). `μ_Y` and `sd_Y` are fixed reference statistics, not
+  the dataset's own mean and standard deviation.
+- `h(C) = linear(C) + λ_T · nonlinear_T(C)`, centred and rescaled to unit
+  variance
+- `g(C) = linear(C) + λ_Y · nonlinear_Y(C)`, centred and rescaled to unit
+  variance
 - `linear(C) = (c1 + c2)/√2`
 - `nonlinear_T(C)` = interaction `c1·c2` plus threshold `1[c1 > 0.5]`
 - `nonlinear_Y(C)` = square `c2²` plus saturating curve `tanh(c1 + 0.5)`
 
 The true ATE is `τ` exactly, because the effect is constant. The function
 forms are fixed once and are not tuned after seeing estimator results.
+
+Implementation details added with the first generator commit:
+
+- **Normalizing constants** for `h`, `g` and the trap's `Y` come from a
+  reference sample of 1,000,000 draws with a fixed seed, so every structural
+  equation is a fixed function and no row depends on any other row. At
+  `λ = 0` the index is exactly `linear(C)`. The owner required fixed
+  reference statistics for `Y` in the trap equation, "so the structural
+  equation does not depend on other generated rows."
+- **Random streams:** each variable (`c1`, `c2`, `p`, `n`, treatment, outcome
+  noise, trap noise) has its own stream derived from the dataset seed.
+  Changing outcome noise or trap strength therefore leaves treatment
+  assignments unchanged.
+- **Potential outcomes** `Y(0)` and `Y(1)` are computed inside the generator
+  for tests only and are never part of the public dataset.
+- **Unvaried knobs:** randomized datasets use `b = 1`; trap datasets use
+  `a = b = 1`; nonlinear datasets use `b = 1`.
+- **Public metadata** also states each column's kind (`binary` or
+  `continuous`).
+- **Module layout:** `bench/public.py` is the only module agent and tool code
+  may import. `load_truth` lives in `bench/truth.py`.
 
 ### Knobs (independent)
 
@@ -72,11 +96,19 @@ forms are fixed once and are not tuned after seeing estimator results.
 | `λ_T` | treatment nonlinearity | 0, 1 |
 | `λ_Y` | outcome nonlinearity | 0, 1 |
 | `τ` | true ATE | 0, 0.5, 1, 2, −1 (cycled) |
-| `γ` | trap strength | two levels |
-| `d` | outcome-only predictor strength | fixed constant |
+| `γ` | trap strength | 0.5, 2.0 |
+| `d` | outcome-only predictor strength | 1.0 (fixed) |
 
-The numeric values of `γ` and `d` were not fixed during design. They will be
-set at implementation, shown for review, and recorded here.
+The values of `γ` and `d` were proposed by Claude with the first generator
+commit and approved by the owner:
+
+- **`d = 1.0`:** the outcome-only predictor adds variance `d² = 1` to the
+  outcome, the same as a confounder index at `b = 1`. It never causes bias;
+  adjusting for it only improves precision.
+- **`γ = 0.5` (weak) and `2.0` (strong):** the trap column is
+  `γ · (T + standardized Y)` plus unit-variance noise. At 0.5 the column is
+  mostly noise; at 2.0 it tracks `T` and `Y` closely. A larger `γ` means a
+  larger distortion if the column is adjusted for.
 
 ### The 30 datasets
 

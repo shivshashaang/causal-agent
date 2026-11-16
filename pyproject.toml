@@ -36,3 +36,6 @@ select = ["E", "F", "I", "B", "UP"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers"
+markers = [
+    "statistical: simulation-based checks with bounds derived from standard errors",
+]

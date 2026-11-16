@@ -73,6 +73,9 @@ Last updated: 2026-11-16
   - `config.py`: `Settings` (model `claude-haiku-5-5`, 8-step cap, tolerance
     0.10 SD with sensitivity 0.05/0.10/0.20, paths) and `load_api_key`, which
     reads `AGENT_LLM_KEY` only.
+  - `agent/llm.py`: `AnthropicClient` (raw SDK, key passed explicitly) and
+    `CachedLLM`, a disk cache keyed by a hash of the whole request. A fully
+    cached run needs no key. Thinking blocks are replayed unchanged.
 
 ## Verification status
 

@@ -8,26 +8,29 @@ Last updated: 2026-11-16
 
 - Design for the synthetic generator approved and recorded in
   `docs/decisions/001-synthetic-generator.md`.
-- Step 0 infrastructure, committed on branch `step-0-infra` (not pushed, not
-  merged): installable `src/causal_agent` package, ruff and pytest config,
-  GitHub Actions workflow, one smoke test, this file, ADR 001. The unused
-  `main.py` stub was deleted after confirming nothing referenced it.
+- Step 0 infrastructure, merged into `main` through PR #1: installable
+  `src/causal_agent` package, ruff and pytest config, GitHub Actions
+  workflow, one smoke test, this file, ADR 001. The unused `main.py` stub was
+  deleted after confirming nothing referenced it.
+- Step 1, part 1, on branch `step-1-generator`: `bench/spec.py`
+  (`DatasetSpec`, `Scenario`, scenario-versus-knob validation) and
+  `bench/equations.py` (indices `h` and `g`, propensity, potential outcomes,
+  trap column, `simulate`), with tests in `tests/bench/`.
 
 ## Verification status
 
-- Local checks pass: `uv sync --locked`, `uv run ruff check .`,
-  `uv run ruff format --check .`, `uv run pytest` (1 test).
-- GitHub Actions CI has **not** been verified. The workflow has never run
-  because the branch has not been pushed.
+- GitHub Actions CI passed on PR #1 (lint, format check, 1 test) before the
+  merge.
+- Step 1, part 1: local checks pass (`uv run ruff check .`,
+  `uv run ruff format --check .`, `uv run pytest`). CI has not run on
+  `step-1-generator` yet because the branch has not been pushed.
 
 ## Next
 
-1. Owner reviews the step 0 commit, then decides when to push and merge.
-   Confirm CI passes on GitHub after the push.
-2. Step 1, first commit: `DatasetSpec` and the structural equations in
-   `src/causal_agent/bench/`, with tests.
-3. Step 1, later commits: scenario generation (the 30 specs), then public and
-   private metadata separation, then the backdoor adjustment-set check.
+1. Step 1, part 2: the 30 benchmark specs (scenario generation), with the
+   overlap and balance tests.
+2. Step 1, part 3: public and private metadata separation and the loaders.
+3. Step 1, part 4: the backdoor adjustment-set check on the true graph.
 
 Do not start the agent, tools, or evaluation pipeline until step 1 is done.
 
@@ -66,9 +69,6 @@ Record each one when the part it belongs to is built.
 - ADR 001 keeps two items marked "approved without a stated reason"
   (5,000 rows; the nonlinear function forms). The owner chose to leave them
   marked that way. Do not fill them in.
-- Numeric values for trap strength `γ` (two levels) and outcome-only
-  predictor strength `d` are not fixed yet. Propose them with the generator
-  code.
 - What the no-tools LLM baseline sees (proposal: one deterministic summary of
   the public CSV, shared with the agent). Decide at step 4.
 - `estimate_effect` must log the adjustment set and estimator family so

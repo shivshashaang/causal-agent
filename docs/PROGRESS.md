@@ -85,6 +85,11 @@ Last updated: 2026-11-16
     schemas generated from the pydantic input models, minus `dataset_id`)
     and `execute_tool`. The loop fixes the dataset; the model cannot pass
     one. Bad calls come back as readable error results.
+  - `agent/loop.py`: the agent loop on the raw Anthropic SDK. One model call
+    is one step, capped at 8; the last step cannot call tools. Every tool
+    call is recorded with input, output and error. The system prompt gives no
+    rule about which columns to adjust for. Tested with a scripted model
+    only; no real API call has been made yet.
 
 ## Verification status
 

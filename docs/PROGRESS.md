@@ -42,6 +42,18 @@ Last updated: 2026-11-16
   names. Valid adjustment sets are computed from the graph and stored; the
   three assumption flags are derived from the knobs.
 
+- Step 1, part 4c: `bench/generate.py` with `generate`, `write_dataset` and
+  `write_benchmark`. Covariates get neutral names `x1..x4` in a seeded random
+  order. Public files go to `<root>/public/`, truth to `<root>/truth/`.
+  Isolation tests: identical public schema in all 30 datasets, no private
+  words in public metadata, exact file round trip, byte-identical rewrite,
+  and `tests/test_isolation.py`, an import scan that forbids `agent/` and
+  `tools/` from importing private modules (vacuous until those packages
+  exist).
+
+**Checkpoint 1 reached: generator and metadata complete. Waiting for the
+owner's review before starting the fixed-pipeline baseline.**
+
 ## Verification status
 
 - GitHub Actions CI passed on PR #1 (lint, format check, 1 test) before the
@@ -52,10 +64,12 @@ Last updated: 2026-11-16
 
 ## Next
 
-1. Step 1, part 4c: `bench/generate.py` (assemble frame, public metadata and
-   truth; write the benchmark to disk; isolation tests).
-2. Checkpoint 1: stop for the owner's review once the generator and metadata
-   are complete.
+1. Owner reviews checkpoint 1 and decides whether to push `step-1-generator`.
+2. Step 2: fixed-pipeline baseline (options and a recommendation first; it
+   must not be weakened to favour the agent).
+3. Step 3: `discover_graph`, `estimate_effect`, `refute_estimate`, one tool
+   per commit.
+4. Checkpoint 2: stop once tools and baselines are complete.
 
 Do not start the agent, tools, or evaluation pipeline until step 1 is done.
 
@@ -94,6 +108,12 @@ Record each one when the part it belongs to is built.
 - ADR 001 keeps two items marked "approved without a stated reason"
   (5,000 rows; the nonlinear function forms). The owner chose to leave them
   marked that way. Do not fill them in.
+- Where the generated benchmark lives on disk, and whether it is committed or
+  regenerated from seeds. Nothing writes it outside tests yet. Decide when
+  the evaluation script is built.
+- `load_truth` lives in `bench/truth.py` next to the model, not in an `eval`
+  package as ADR 001's interface sketch suggested. The import scan enforces
+  the boundary either way.
 - What the no-tools LLM baseline sees (proposal: one deterministic summary of
   the public CSV, shared with the agent). Decide at step 4.
 - `estimate_effect` must log the adjustment set and estimator family so

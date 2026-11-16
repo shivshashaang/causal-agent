@@ -79,6 +79,12 @@ Implementation details added with the first generator commit:
   assignments unchanged.
 - **Potential outcomes** `Y(0)` and `Y(1)` are computed inside the generator
   for tests only and are never part of the public dataset.
+- **Unvaried knobs:** randomized datasets use `b = 1`; trap datasets use
+  `a = b = 1`; nonlinear datasets use `b = 1`.
+- **Public metadata** also states each column's kind (`binary` or
+  `continuous`).
+- **Module layout:** `bench/public.py` is the only module agent and tool code
+  may import. `load_truth` lives in `bench/truth.py`.
 
 ### Knobs (independent)
 

@@ -53,6 +53,11 @@ Last updated: 2026-11-16
     95% interval, diagnostics, warnings and the estimator's assumptions. It
     does not block any covariate, including the post-outcome column: choosing
     the adjustment set is the caller's job.
+  - `tools/refute_estimate.py`: typed tool with three checks (placebo
+    treatment, random common cause, data subset), 10 fixed-seed repetitions
+    each. A check fails when the placebo effect or the average shift exceeds
+    one standard error of the original estimate. The output states that a
+    pass is not evidence of an unbiased estimate.
   - Discovery notes, continued:
     - Measured on the 30 datasets at alpha 0.05: 3 of 6 randomized datasets
       show one chance covariate-treatment edge (p = 0.047, 0.009, 0.039).
@@ -69,10 +74,12 @@ Last updated: 2026-11-16
 
 ## Next
 
-1. `tools/refute_estimate.py`.
-2. Checkpoint 2: stop and report, including the fixed pipeline's measured
-   performance on the 30 datasets. Do not start the LLM agent before the
-   owner reviews.
+1. Checkpoint 2 reached: the fixed baseline and the three tools are
+   implemented. Waiting for the owner's review. Do not start the LLM agent
+   before then.
+2. After approval: agent loop on the raw Anthropic SDK (8-step cap, cached
+   responses, logged tool calls), then the no-tools LLM baseline, then the
+   evaluation script, results table, plot and README.
 
 ## Working rules set by the owner
 

@@ -109,6 +109,10 @@ Last updated: 2026-11-16
     each question to `results/runs/`, reads ground truth only after an
     approach has answered, and writes `docs/results/`. `--refute` also runs
     every applicable refuter on each final method, cached on disk.
+  - `docs/decisions/002-estimators-baseline-tools.md` and
+    `003-evaluation-protocol.md`. Both quote the owner's stated requirements
+    and list separately the choices Claude made during implementation that
+    the owner has not reviewed.
   - First real API calls (one dataset, `ds_001`): the request shape works.
     The no-tools model solved a regression by hand from the correlation
     table and landed within tolerance, so the shared summary is informative

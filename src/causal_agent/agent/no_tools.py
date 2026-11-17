@@ -3,6 +3,10 @@
 The model sees exactly the dataset summary the agent sees and must answer
 from it alone. It cannot run an estimator, so the estimator and adjustment
 set in its answer are what it says its reasoning corresponds to.
+
+An ablation of this baseline removes the correlation table from the summary.
+It is a separate, separately reported approach; it does not replace the
+baseline.
 """
 
 from pathlib import Path
@@ -51,13 +55,21 @@ def system_prompt() -> str:
 
 
 def run_no_tools(
-    dataset_id: str, root: Path, llm: Any, settings: Settings
+    dataset_id: str,
+    root: Path,
+    llm: Any,
+    settings: Settings,
+    include_correlations: bool = True,
 ) -> NoToolsRun:
-    """Answer one dataset's question from the summary alone."""
+    """Answer one dataset's question from the summary alone.
+
+    `include_correlations=False` is the ablation: the same prompt and model,
+    with the correlation table removed from the summary and nothing else
+    changed.
+    """
     frame, metadata = load_public(dataset_id, root)
-    messages: list[dict[str, Any]] = [
-        {"role": "user", "content": describe_dataset(frame, metadata)}
-    ]
+    summary = describe_dataset(frame, metadata, include_correlations)
+    messages: list[dict[str, Any]] = [{"role": "user", "content": summary}]
     input_tokens = output_tokens = 0
     final_answer: FinalAnswer | None = None
     final_text = ""

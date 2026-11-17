@@ -6,7 +6,11 @@ import pytest
 
 from causal_agent.bench.spec import DatasetSpec, Scenario
 from causal_agent.config import Settings
+from causal_agent.eval import run as run_module
+from causal_agent.eval.report import ABLATION_NOTE
 from causal_agent.eval.run import (
+    ABLATIONS,
+    ALL_APPROACHES,
     APPROACHES,
     evaluate,
     refute_final_method,
@@ -183,6 +187,81 @@ def test_unrunnable_methods_are_not_refuted(settings, results) -> None:
             "ds_801", EstimatorName.LINEAR_REGRESSION, ("nope",), root, cache
         )
         is None
+    )
+
+
+def test_ablation_is_not_one_of_the_default_approaches(results) -> None:
+    assert ABLATIONS == ("no_tools_no_correlations",)
+    assert not set(ABLATIONS) & set(APPROACHES)
+    assert ALL_APPROACHES == (*APPROACHES, *ABLATIONS)
+    assert {r.score.approach for r in results} == set(APPROACHES)
+
+
+def test_ablation_runs_beside_the_baseline_without_the_correlation_table(
+    settings,
+) -> None:
+    llm = AnsweringLLM()
+    results = evaluate(
+        settings,
+        llm,
+        SPECS,
+        approaches=["no_tools", "no_tools_no_correlations"],
+        log=lambda _: None,
+    )
+    assert [r.score.approach for r in results] == (
+        ["no_tools"] * 2 + ["no_tools_no_correlations"] * 2
+    )
+    summaries = [request["messages"][0]["content"] for request in llm.requests]
+    assert all("Pearson correlations" in text for text in summaries[:2])
+    assert all("Pearson correlations" not in text for text in summaries[2:])
+    for approach in ("no_tools", "no_tools_no_correlations"):
+        files = sorted(p.name for p in (settings.runs_dir / approach).iterdir())
+        assert files == ["ds_801.json", "ds_802.json"]
+
+    write_report(results, settings, title="Ablation")
+    markdown = (settings.report_dir / "results.md").read_text(encoding="utf-8")
+    assert markdown.startswith("# Ablation\n")
+    assert ABLATION_NOTE in markdown
+    assert "| LLM, no tools |" in markdown
+    assert "| LLM, no tools, no correlations (ablation) |" in markdown
+
+
+def test_report_without_the_ablation_has_no_ablation_note(settings, results) -> None:
+    write_report(results, settings)
+    markdown = (settings.report_dir / "results.md").read_text(encoding="utf-8")
+    assert markdown.startswith("# Results\n")
+    assert ABLATION_NOTE not in markdown
+    assert "ablation" not in markdown.lower()
+
+
+def test_an_existing_report_is_never_replaced_by_accident(settings, results) -> None:
+    write_report(results, settings)
+    before = {path.name: path.read_bytes() for path in settings.report_dir.iterdir()}
+    with pytest.raises(FileExistsError, match="already holds a results report"):
+        write_report(results[:1], settings)
+    after = {path.name: path.read_bytes() for path in settings.report_dir.iterdir()}
+    assert after == before
+
+    write_report(results[:1], settings, overwrite=True)
+    assert (settings.report_dir / "scores.csv").read_bytes() != before["scores.csv"]
+
+
+def test_command_line_stops_before_running_when_a_report_exists(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    report_dir = tmp_path / "published"
+    report_dir.mkdir()
+    (report_dir / "results.md").write_text("published results", encoding="utf-8")
+
+    def fail(*args, **kwargs):
+        raise AssertionError("nothing may run when the report would be replaced")
+
+    monkeypatch.setattr(run_module, "evaluate", fail)
+    with pytest.raises(SystemExit):
+        run_module.main(["--report-dir", str(report_dir)])
+    assert "already holds a results report" in capsys.readouterr().err
+    assert (report_dir / "results.md").read_text(encoding="utf-8") == (
+        "published results"
     )
 
 

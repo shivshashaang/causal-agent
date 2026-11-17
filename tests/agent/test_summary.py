@@ -2,7 +2,11 @@
 
 import pytest
 
-from causal_agent.agent.summary import TIMING_LEGEND, describe_dataset
+from causal_agent.agent.summary import (
+    CORRELATION_HEADING,
+    TIMING_LEGEND,
+    describe_dataset,
+)
 from causal_agent.bench.spec import Scenario
 
 PRIVATE_WORDS = (
@@ -21,6 +25,30 @@ PRIVATE_WORDS = (
 def _summary(small_benchmark, scenario) -> str:
     dataset = small_benchmark.datasets[scenario]
     return describe_dataset(dataset.frame, dataset.public)
+
+
+@pytest.mark.parametrize("scenario", list(Scenario))
+def test_ablation_summary_drops_only_the_correlation_table(
+    small_benchmark, scenario
+) -> None:
+    dataset = small_benchmark.datasets[scenario]
+    full = describe_dataset(dataset.frame, dataset.public)
+    ablated = describe_dataset(
+        dataset.frame, dataset.public, include_correlations=False
+    )
+    assert CORRELATION_HEADING not in ablated
+    kept, _, removed = full.partition(f"\n\n{CORRELATION_HEADING}\n")
+    assert ablated == kept
+    assert removed  # the full summary really had a correlation table
+    for heading in ("Columns", "Column means by treatment group", TIMING_LEGEND):
+        assert heading in ablated
+
+
+def test_correlations_are_included_by_default(small_benchmark) -> None:
+    dataset = small_benchmark.datasets[Scenario.CONFOUNDED_LINEAR]
+    assert describe_dataset(dataset.frame, dataset.public) == describe_dataset(
+        dataset.frame, dataset.public, include_correlations=True
+    )
 
 
 @pytest.mark.parametrize("scenario", list(Scenario))

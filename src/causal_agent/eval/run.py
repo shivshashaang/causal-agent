@@ -3,6 +3,10 @@
     uv run python -m causal_agent.eval.run            # everything
     uv run python -m causal_agent.eval.run --refute   # also refute each final method
 
+A run never replaces an existing report: it stops unless `--report-dir` names
+a directory without one or `--overwrite` is passed. Ablations run only when
+named with `--approaches`.
+
 The three approaches receive only public data. Ground truth is read here,
 after an approach has answered, to score it.
 
@@ -48,6 +52,12 @@ from causal_agent.tools.refute_estimate import (
 )
 
 APPROACHES = ("fixed_pipeline", "agent", "no_tools")
+
+# Extra approaches that are reported separately and never run by default.
+# `no_tools_no_correlations` is the no-tools baseline with the correlation
+# table removed from its summary.
+ABLATIONS = ("no_tools_no_correlations",)
+ALL_APPROACHES = (*APPROACHES, *ABLATIONS)
 
 
 def refute_final_method(
@@ -107,8 +117,16 @@ def _run_approach(
             "adjustment_set": run.adjustment_set,
             "outcome": "answered",
         }
-    runner = run_agent if approach == "agent" else run_no_tools
-    run = runner(dataset_id, root, llm, settings)
+    if approach == "agent":
+        run = run_agent(dataset_id, root, llm, settings)
+    else:
+        run = run_no_tools(
+            dataset_id,
+            root,
+            llm,
+            settings,
+            include_correlations=approach != "no_tools_no_correlations",
+        )
     answer = run.final_answer
     fields: dict[str, Any] = {
         "estimate": answer.estimate if answer else None,
@@ -137,7 +155,7 @@ def evaluate(
     write_benchmark(specs, root)
     results: list[Result] = []
     for approach in approaches:
-        if approach not in APPROACHES:
+        if approach not in ALL_APPROACHES:
             raise ValueError(f"unknown approach: {approach}")
         for spec in specs:
             dataset_id = spec.dataset_id
@@ -194,12 +212,31 @@ def evaluate(
     return results
 
 
-def write_report(results: Sequence[Result], settings: Settings) -> None:
-    """Write the Markdown report, the CSV and the plot."""
+def report_exists(report_dir: Path) -> bool:
+    """Whether a results report has already been written to this directory."""
+    return (Path(report_dir) / "results.md").exists()
+
+
+def write_report(
+    results: Sequence[Result],
+    settings: Settings,
+    title: str = "Results",
+    overwrite: bool = False,
+) -> None:
+    """Write the Markdown report, the CSV and the plot.
+
+    Refuses to replace an existing report unless `overwrite` is set, so a
+    published set of results cannot be replaced by accident.
+    """
     report_dir = settings.report_dir
+    if report_exists(report_dir) and not overwrite:
+        raise FileExistsError(
+            f"{report_dir} already holds a results report; choose another "
+            "report directory or pass overwrite"
+        )
     report_dir.mkdir(parents=True, exist_ok=True)
     markdown = results_markdown(
-        results, settings.ate_tolerance_sd, settings.tolerance_sensitivity
+        results, settings.ate_tolerance_sd, settings.tolerance_sensitivity, title
     )
     (report_dir / "results.md").write_text(markdown, encoding="utf-8", newline="\n")
     write_scores_csv(results, report_dir / "scores.csv")
@@ -210,22 +247,42 @@ def write_report(results: Sequence[Result], settings: Settings) -> None:
 
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--approaches", nargs="+", default=list(APPROACHES))
+    parser.add_argument(
+        "--approaches",
+        nargs="+",
+        default=list(APPROACHES),
+        choices=ALL_APPROACHES,
+        help="default: the three main approaches; ablations must be named",
+    )
     parser.add_argument("--datasets", nargs="+", help="dataset IDs (default: all)")
     parser.add_argument("--refute", action="store_true")
     parser.add_argument("--model", help="override the model in the settings")
+    parser.add_argument("--report-dir", type=Path, help="where to write the report")
+    parser.add_argument("--title", default="Results", help="title of the report")
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="replace a report that already exists in the report directory",
+    )
     arguments = parser.parse_args(argv)
 
     settings = Settings()
     if arguments.model:
         settings = settings.model_copy(update={"agent_model": arguments.model})
+    if arguments.report_dir:
+        settings = settings.model_copy(update={"report_dir": arguments.report_dir})
+    if report_exists(settings.report_dir) and not arguments.overwrite:
+        parser.error(
+            f"{settings.report_dir} already holds a results report. Pass "
+            "--report-dir to write somewhere else, or --overwrite to replace it."
+        )
     specs = benchmark_specs(settings.master_seed)
     if arguments.datasets:
         specs = [spec for spec in specs if spec.dataset_id in arguments.datasets]
 
     llm = CachedLLM(lambda: AnthropicClient(load_api_key()), settings.cache_dir)
     results = evaluate(settings, llm, specs, arguments.approaches, arguments.refute)
-    write_report(results, settings)
+    write_report(results, settings, arguments.title, arguments.overwrite)
     print(f"model calls: {llm.misses} new, {llm.hits} from cache")
     print(f"report written to {settings.report_dir}")
 

@@ -184,6 +184,15 @@ CI passed. The owner approved Benchmark v2 (see Next).
     The six "both sides" datasets have a recorded linear-regression bias of
     0.100 to 0.502 SD; every other v2 dataset is at or below 0.003 SD.
 
+  - No-tools ablation. `describe_dataset` and `run_no_tools` take
+    `include_correlations` (default true, so the original baseline's prompt
+    is unchanged). The evaluation has a fourth approach,
+    `no_tools_no_correlations`, listed under `ABLATIONS`: it never runs by
+    default and is labelled "(ablation)" in every table and in the plot.
+    `eval/run.py` now refuses to write into a directory that already holds a
+    report unless `--overwrite` is passed, and takes `--report-dir` and
+    `--title`, so the published v1 results cannot be replaced by accident.
+
 **Waiting for the owner's review of the frozen v2 benchmark. Do not run any
 LLM approach on v2 before the owner approves.**
 

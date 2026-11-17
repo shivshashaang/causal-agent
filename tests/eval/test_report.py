@@ -162,7 +162,10 @@ def test_markdown_refutation_table_counts_flags(results) -> None:
     text = results_markdown(results, 0.10, TOLERANCES)
     lines = [
         line
-        for line in text.split("## Refutation outcomes")[1].splitlines()
+        # Only the refutation section: stop at the next heading.
+        for line in text.split("## Refutation outcomes")[1]
+        .split("\n## ")[0]
+        .splitlines()
         if line.startswith("| ")
     ]
     cells = [[c.strip() for c in line.strip("|").split("|")] for line in lines[1:]]

@@ -1,7 +1,13 @@
 """Run the evaluation: three approaches on the benchmark, scored and reported.
 
-    uv run python -m causal_agent.eval.run            # everything
-    uv run python -m causal_agent.eval.run --refute   # also refute each final method
+    uv run python -m causal_agent.eval.run                  # Benchmark v1
+    uv run python -m causal_agent.eval.run --refute         # also check each method
+    uv run python -m causal_agent.eval.run --benchmark v2   # Benchmark v2
+
+Each benchmark has its own data directory (`data/benchmark`,
+`data/benchmark_v2`) and its own default report directory (`docs/results`,
+`docs/results/v2`). Every report carries a run record: the model, the
+settings, the digest of the dataset specs and the commit of the code.
 
 A run never replaces an existing report: it stops unless `--report-dir` names
 a directory without one or `--overwrite` is passed. Ablations run only when
@@ -21,7 +27,10 @@ Outputs:
 import argparse
 import hashlib
 import json
-from collections.abc import Callable, Sequence
+import subprocess
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -31,13 +40,16 @@ from causal_agent.agent.fixed_pipeline import run_fixed_pipeline
 from causal_agent.agent.llm import AnthropicClient, CachedLLM
 from causal_agent.agent.loop import run_agent, write_run_log
 from causal_agent.agent.no_tools import run_no_tools
+from causal_agent.bench.design import linear_regression_bias
+from causal_agent.bench.fingerprint import spec_digest
 from causal_agent.bench.generate import write_benchmark
 from causal_agent.bench.public import load_public
-from causal_agent.bench.spec import DatasetSpec
-from causal_agent.bench.suite import benchmark_specs
+from causal_agent.bench.spec import DatasetSpec, Scenario
+from causal_agent.bench.suite import benchmark_specs, benchmark_v2_specs
 from causal_agent.bench.truth import GroundTruth, load_truth
 from causal_agent.config import Settings, load_api_key
 from causal_agent.eval.report import (
+    SCENARIO_LABELS,
     Result,
     plot_errors,
     results_markdown,
@@ -59,6 +71,36 @@ APPROACHES = ("fixed_pipeline", "agent", "no_tools")
 # table removed from its summary.
 ABLATIONS = ("no_tools_no_correlations",)
 ALL_APPROACHES = (*APPROACHES, *ABLATIONS)
+
+
+@dataclass(frozen=True)
+class Benchmark:
+    """Where a benchmark's datasets come from and where its files go."""
+
+    title: str
+    data_name: str
+    """Directory name of the generated datasets, beside the default one."""
+
+    report_subdirectory: str
+    """Default report directory, relative to the settings' report directory."""
+
+    specs: Callable[[Settings], list[DatasetSpec]]
+
+
+BENCHMARKS = {
+    "v1": Benchmark(
+        title="Results",
+        data_name="benchmark",
+        report_subdirectory="",
+        specs=lambda settings: benchmark_specs(settings.master_seed),
+    ),
+    "v2": Benchmark(
+        title="Benchmark v2 results",
+        data_name="benchmark_v2",
+        report_subdirectory="v2",
+        specs=lambda settings: benchmark_v2_specs(),
+    ),
+}
 
 
 def refute_final_method(
@@ -173,12 +215,30 @@ def _run_approach(
         "adjustment_set": answer.adjustment_set if answer else (),
         "outcome": run.outcome,
         "steps": run.steps,
+        "input_tokens": run.input_tokens,
+        "output_tokens": run.output_tokens,
     }
     if approach == "agent":
         fields["n_tool_calls"] = len(run.tool_calls)
+        fields["n_tool_errors"] = sum(call.error is not None for call in run.tool_calls)
         fields["answer_supported"] = run.answer_is_supported()
         fields["agent_refutations"] = run.refutations_of_final_method()
+        fields["agent_disagreement"] = run.disagreement_checks()
     return run, fields
+
+
+def design_label(spec: DatasetSpec) -> str:
+    """A finer description of a dataset's design than its scenario."""
+    if spec.scenario is Scenario.CONFOUNDED_NONLINEAR:
+        sides = (spec.treatment_nonlinearity > 0, spec.outcome_nonlinearity > 0)
+        return {
+            (False, True): "Confounded, nonlinear outcome only",
+            (True, False): "Confounded, nonlinear treatment only",
+            (True, True): "Confounded, nonlinear on both sides",
+        }[sides]
+    if spec.scenario is Scenario.RANDOMIZED and spec.outcome_nonlinearity > 0:
+        return "Randomized, nonlinear outcome"
+    return SCENARIO_LABELS[spec.scenario.value]
 
 
 def evaluate(
@@ -188,8 +248,16 @@ def evaluate(
     approaches: Sequence[str] = APPROACHES,
     refute: bool = False,
     log: Callable[[str], None] = print,
+    record_design: bool = False,
 ) -> list[Result]:
-    """Generate the datasets, run each approach on each one, and score."""
+    """Generate the datasets, run each approach on each one, and score.
+
+    With `refute`, the evaluation also runs the three pass-or-fail refuters
+    and the estimator-disagreement check on each final method. With
+    `record_design`, each result carries a finer design label and the
+    recorded population bias of linear regression for its dataset; both come
+    from the private spec and are attached only after the approach answered.
+    """
     root = settings.benchmark_root
     write_benchmark(specs, root)
     results: list[Result] = []
@@ -225,14 +293,17 @@ def evaluate(
                 settings.tolerance_sensitivity,
             )
             eval_refutations = None
+            disagreement = None
             if refute and score.answered:
-                eval_refutations = refute_final_method(
+                method = (
                     dataset_id,
                     answer["estimator"],
                     score.adjustment_set,
                     root,
                     settings.cache_dir,
                 )
+                eval_refutations = refute_final_method(*method)
+                disagreement = disagreement_of_final_method(*method)
             result = Result(
                 score=score,
                 outcome=answer["outcome"],
@@ -241,14 +312,71 @@ def evaluate(
                 answer_supported=answer.get("answer_supported"),
                 agent_refutations=answer.get("agent_refutations", {}),
                 eval_refutations=eval_refutations,
+                n_tool_errors=answer.get("n_tool_errors"),
+                input_tokens=answer.get("input_tokens"),
+                output_tokens=answer.get("output_tokens"),
+                agent_disagreement=answer.get("agent_disagreement", ()),
+                eval_disagreement=disagreement["verdict"] if disagreement else None,
+                eval_disagreement_reason=(
+                    disagreement["reason"] if disagreement else None
+                ),
+                subtype=design_label(spec) if record_design else None,
+                linear_bias_sd=(
+                    linear_regression_bias(spec).bias_in_sd if record_design else None
+                ),
             )
             results.append(result)
             shown = "no answer" if score.estimate is None else f"{score.estimate:+.3f}"
             log(
-                f"{approach:14s} {dataset_id} {score.scenario:22s} "
-                f"estimate {shown} (true {score.true_ate:+.1f}) {answer['outcome']}"
+                f"{approach:24s} {dataset_id} {score.scenario:22s} "
+                f"estimate {shown} (true {score.true_ate:+.2f}) {answer['outcome']}"
             )
     return results
+
+
+def _git(*arguments: str) -> str | None:
+    try:
+        completed = subprocess.run(
+            ["git", *arguments], capture_output=True, text=True, check=True
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return completed.stdout.strip()
+
+
+def run_record(
+    benchmark: str,
+    settings: Settings,
+    specs: Sequence[DatasetSpec],
+    approaches: Sequence[str],
+    refute: bool,
+    llm: Any,
+) -> dict[str, Any]:
+    """What was run: model, settings, datasets and the commit of the code."""
+    status = _git("status", "--porcelain")
+    return {
+        "Benchmark": benchmark,
+        "Run date (UTC)": datetime.now(UTC).strftime("%Y-%m-%d"),
+        "Datasets": len(specs),
+        "Dataset spec digest (SHA-256)": spec_digest(specs),
+        "Approaches": ", ".join(approaches),
+        "Model requested": settings.agent_model,
+        "Model reported by the API": ", ".join(
+            sorted(getattr(llm, "response_models", ())) or ["none"]
+        ),
+        "Effort": settings.effort,
+        "Max output tokens per response": settings.max_output_tokens,
+        "Max model calls per agent question": settings.max_agent_steps,
+        "Tolerance (outcome SDs)": settings.ate_tolerance_sd,
+        "Tolerances reported": ", ".join(
+            f"{value:g}" for value in settings.tolerance_sensitivity
+        ),
+        "Refutation and disagreement checks run by the evaluation": refute,
+        "Model calls made in this run": getattr(llm, "misses", "n/a"),
+        "Model calls replayed from cache": getattr(llm, "hits", "n/a"),
+        "Code commit": _git("rev-parse", "HEAD") or "unknown",
+        "Working tree clean": "unknown" if status is None else status == "",
+    }
 
 
 def report_exists(report_dir: Path) -> bool:
@@ -261,11 +389,13 @@ def write_report(
     settings: Settings,
     title: str = "Results",
     overwrite: bool = False,
+    record: Mapping[str, Any] | None = None,
 ) -> None:
     """Write the Markdown report, the CSV and the plot.
 
     Refuses to replace an existing report unless `overwrite` is set, so a
-    published set of results cannot be replaced by accident.
+    published set of results cannot be replaced by accident. With `record`,
+    the run record is shown in the report and saved as `run_record.json`.
     """
     report_dir = settings.report_dir
     if report_exists(report_dir) and not overwrite:
@@ -275,8 +405,16 @@ def write_report(
         )
     report_dir.mkdir(parents=True, exist_ok=True)
     markdown = results_markdown(
-        results, settings.ate_tolerance_sd, settings.tolerance_sensitivity, title
+        results,
+        settings.ate_tolerance_sd,
+        settings.tolerance_sensitivity,
+        title,
+        record,
     )
+    if record:
+        (report_dir / "run_record.json").write_text(
+            json.dumps(dict(record), indent=1) + "\n", encoding="utf-8", newline="\n"
+        )
     (report_dir / "results.md").write_text(markdown, encoding="utf-8", newline="\n")
     write_scores_csv(results, report_dir / "scores.csv")
     plot_errors(
@@ -293,11 +431,17 @@ def main(argv: Sequence[str] | None = None) -> None:
         choices=ALL_APPROACHES,
         help="default: the three main approaches; ablations must be named",
     )
+    parser.add_argument(
+        "--benchmark",
+        choices=sorted(BENCHMARKS),
+        default="v1",
+        help="v1: the original 30 datasets; v2: the 20 frozen datasets of ADR 004",
+    )
     parser.add_argument("--datasets", nargs="+", help="dataset IDs (default: all)")
     parser.add_argument("--refute", action="store_true")
     parser.add_argument("--model", help="override the model in the settings")
     parser.add_argument("--report-dir", type=Path, help="where to write the report")
-    parser.add_argument("--title", default="Results", help="title of the report")
+    parser.add_argument("--title", help="title of the report")
     parser.add_argument(
         "--overwrite",
         action="store_true",
@@ -305,23 +449,52 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
     arguments = parser.parse_args(argv)
 
+    benchmark = BENCHMARKS[arguments.benchmark]
     settings = Settings()
     if arguments.model:
         settings = settings.model_copy(update={"agent_model": arguments.model})
-    if arguments.report_dir:
-        settings = settings.model_copy(update={"report_dir": arguments.report_dir})
+    # Each benchmark has its own data directory and its own default report
+    # directory, so running one can never touch the other's files.
+    settings = settings.model_copy(
+        update={
+            "benchmark_root": settings.benchmark_root.with_name(benchmark.data_name),
+            "report_dir": arguments.report_dir
+            or settings.report_dir / benchmark.report_subdirectory,
+        }
+    )
     if report_exists(settings.report_dir) and not arguments.overwrite:
         parser.error(
             f"{settings.report_dir} already holds a results report. Pass "
             "--report-dir to write somewhere else, or --overwrite to replace it."
         )
-    specs = benchmark_specs(settings.master_seed)
+    specs = benchmark.specs(settings)
     if arguments.datasets:
         specs = [spec for spec in specs if spec.dataset_id in arguments.datasets]
 
     llm = CachedLLM(lambda: AnthropicClient(load_api_key()), settings.cache_dir)
-    results = evaluate(settings, llm, specs, arguments.approaches, arguments.refute)
-    write_report(results, settings, arguments.title, arguments.overwrite)
+    results = evaluate(
+        settings,
+        llm,
+        specs,
+        arguments.approaches,
+        arguments.refute,
+        record_design=True,
+    )
+    record = run_record(
+        arguments.benchmark,
+        settings,
+        specs,
+        arguments.approaches,
+        arguments.refute,
+        llm,
+    )
+    write_report(
+        results,
+        settings,
+        arguments.title or benchmark.title,
+        arguments.overwrite,
+        record,
+    )
     print(f"model calls: {llm.misses} new, {llm.hits} from cache")
     print(f"report written to {settings.report_dir}")
 

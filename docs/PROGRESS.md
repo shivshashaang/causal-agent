@@ -225,8 +225,18 @@ CI passed. The owner approved Benchmark v2 (see Next).
 
 Still to do:
 
+  - Evaluation runner for v2. `--benchmark v1|v2` picks the specs, the data
+    directory (`data/benchmark`, `data/benchmark_v2`) and the default report
+    directory (`docs/results`, `docs/results/v2`). With `--refute` the
+    evaluation also runs the disagreement check on every final method and
+    reports detected problems, false alarms, misses and inconclusive results
+    in their own table. Every report now has a table of model calls, tool
+    calls, tool errors and tokens, a breakdown by finer design, and a run
+    record (`run_record.json`: model requested and model reported by the API,
+    settings, spec digest, commit, whether the working tree was clean).
+
 1. Done: the estimator-disagreement check.
-2. A way to run the evaluation on v2 (`data/benchmark_v2`, `docs/results/v2`),
+2. Done: a way to run the evaluation on v2 (`data/benchmark_v2`, `docs/results/v2`),
    with the ablation as a fourth approach and the v2 spec digest and freeze
    commit recorded in the report.
 3. The v2 run, the v2 report and README section, and ADR updates (the agent's

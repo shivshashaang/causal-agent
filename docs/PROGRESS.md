@@ -193,8 +193,36 @@ CI passed. The owner approved Benchmark v2 (see Next).
     report unless `--overwrite` is passed, and takes `--report-dir` and
     `--title`, so the published v1 results cannot be replaced by accident.
 
+  - Ablation run on Benchmark v1 (2026-11-16, `claude-haiku-5-5`, 30 new
+    model calls; the original no-tools baseline replayed from cache with 0
+    new calls, which confirms its prompt is unchanged). Results are in
+    `docs/results/v1-ablation/`. The original files in `docs/results/` are
+    byte-identical to before.
+    - Without the correlation table the no-tools model was within 0.10 SD on
+      18 of 30 datasets (13 at 0.05, 23 at 0.20; mean absolute error 0.124
+      SD). By scenario: randomized 6/6, confounded linear 4/9, confounded
+      nonlinear 6/9, trap 2/6.
+    - It named a valid adjustment set on all 30. The three existing
+      refutation checks flagged 0 of its 12 inaccurate answers.
+  - `README.md`: the v1 results are labelled Benchmark v1 and kept as
+    written; the ablation is a labelled addendum; a short Benchmark v2
+    section says v2 is frozen and not yet run.
+
 **Waiting for the owner's review of the frozen v2 benchmark. Do not run any
 LLM approach on v2 before the owner approves.**
+
+Still to do after the owner approves:
+
+1. The estimator-disagreement check in `refute_estimate`. The owner must
+   first approve the uncertainty method (a paired standard error from
+   per-row influence values was proposed, with a three-way verdict).
+2. A way to run the evaluation on v2 (`data/benchmark_v2`, `docs/results/v2`),
+   with the ablation as a fourth approach and the v2 spec digest and freeze
+   commit recorded in the report.
+3. The v2 run, the v2 report and README section, and ADR updates (the agent's
+   toolset differs between v1 and v2).
+4. Push `step-5-benchmark-v2` and open a pull request, when the owner says
+   so.
 
 ## Verification status
 

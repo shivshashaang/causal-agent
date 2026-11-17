@@ -6,7 +6,12 @@ its own answer. It is evaluated on 30 synthetic datasets where the true effect
 is known, against two baselines: the same LLM with no tools, and a fixed
 pipeline with no LLM.
 
-## Results
+There are two benchmarks. **Benchmark v1** (30 datasets) has been run; its
+results are below and are kept exactly as first published. **Benchmark v2**
+(20 harder datasets) is specified and frozen but has not been run yet; see
+[Benchmark v2](#benchmark-v2-frozen-not-yet-run).
+
+## Benchmark v1 results
 
 **The agent did not beat either baseline.** All three approaches were within
 tolerance on all 30 datasets, so the benchmark did not separate them on
@@ -77,11 +82,47 @@ construction. They flagged 0 of 23 inaccurate unadjusted estimates and 0 of 4
 inaccurate regressions that adjusted for the trap column. These checks detect
 instability, not bias.
 
-## Failure analysis
+### Ablation: the no-tools baseline without the correlation table
 
-There were no accuracy failures to analyse, so this section explains why the
-benchmark did not separate the approaches and where the agent's method choice
-fell short.
+This was run after the v1 results above, as a separate run. It adds a fourth
+approach and changes nothing above. The ablation is the no-tools baseline with
+the correlation table removed from its summary; the column statistics, the
+means by treatment group and the timing labels stay. The full report is in
+[docs/results/v1-ablation/results.md](docs/results/v1-ablation/results.md).
+
+| Approach | Within 0.05 SD | Within 0.10 SD | Within 0.20 SD | Mean abs. error (SD) | Median abs. error (SD) |
+|---|---|---|---|---|---|
+| LLM, no tools (original, from above) | 30/30 | 30/30 | 30/30 | 0.014 | 0.014 |
+| LLM, no tools, no correlations (ablation) | 13/30 | 18/30 | 23/30 | 0.124 | 0.079 |
+
+| Scenario | LLM, no tools (original) | No correlations (ablation) |
+|---|---|---|
+| Randomized | 6/6 | 6/6 |
+| Confounded, linear | 9/9 | 4/9 |
+| Confounded, nonlinear | 9/9 | 6/9 |
+| Post-outcome trap | 6/6 | 2/6 |
+
+Without the correlation table the no-tools model was correct on 18 of 30
+datasets. It stayed correct on all 6 randomized datasets, where the raw gap
+between the groups is the answer, and lost accuracy wherever adjustment is
+needed. So on v1 the no-tools baseline matched the agent because the summary
+handed it the inputs of a regression, not because tools are unnecessary. With
+that table removed, the agent (30/30) and the fixed pipeline (30/30) are both
+ahead of the no-tools model on v1.
+
+The ablation named a valid adjustment set on all 30 datasets and still missed
+12, so its misses are not explained by which columns it said it adjusted for.
+Its method is self-reported: it has no way to run one. The evaluation's
+refutation checks flagged none of
+those 12. For a no-tools answer the checks re-run the method the model named,
+not the number it guessed, so this is weak evidence about the checks.
+
+## Failure analysis (Benchmark v1)
+
+There were no accuracy failures to analyse in the original v1 run, so this
+section explains why the benchmark did not separate the approaches and where
+the agent's method choice fell short. It was written before the ablation
+above and is kept as written.
 
 **The agent's tools added no measurable accuracy over the summary.** The
 no-tools model received column statistics, group means and the correlation
@@ -128,7 +169,34 @@ no errors: `estimate_effect` on all 30 questions, `discover_graph` on 25 and
 `refute_estimate` on 10. Every final answer matched a logged
 `estimate_effect` call.
 
+## Benchmark v2 (frozen, not yet run)
+
+Benchmark v2 exists because v1 could not rank the approaches. A linear
+regression is biased only when the same curve drives both who is treated and
+the outcome, and v1's two curves are nearly unrelated. In v2 the treatment and
+the outcome share one curved function of the confounders. Everything else is
+as in v1: every confounder is observed, the treatment effect is constant, and
+the public columns and timing labels are the same.
+
+- 20 datasets, `ds_101` to `ds_120`: 2 randomized, 4 confounded linear, 10
+  confounded nonlinear (2 with a curved outcome only, 2 with a curved
+  treatment model only, 6 with both), 4 with the post-outcome trap.
+- True effects are non-round values drawn by a seeded generator; two datasets
+  have an effect of exactly zero.
+- The specs, their validation tests and the decision record were committed
+  before any approach was run on v2, and they do not change afterwards.
+- For each dataset the record lists how far a linear regression would land
+  from the truth with unlimited data. It is 0.100 to 0.502 SD on the six
+  "both" datasets and at most 0.003 SD on the other fourteen. That number was
+  recorded, not used to choose datasets.
+
+The full specification is in
+[docs/decisions/004-benchmark-v2.md](docs/decisions/004-benchmark-v2.md).
+There are no v2 results yet.
+
 ## Limitations
+
+These describe Benchmark v1 and its run.
 
 - **The benchmark is too easy to rank the approaches.** All three scored
   30/30. The results show that the pipeline, tools and agent work end to end;
@@ -227,13 +295,21 @@ AGENT_LLM_KEY=your-key
 ```
 
 ```powershell
-uv run python -m causal_agent.eval.run            # all three approaches
-uv run python -m causal_agent.eval.run --refute   # also refute each final method
+# Benchmark v1, all three approaches, also refuting each final method
+uv run python -m causal_agent.eval.run --refute --report-dir results\rerun-v1
+
+# The no-tools ablation beside the original no-tools baseline
+uv run python -m causal_agent.eval.run --refute --approaches no_tools no_tools_no_correlations --report-dir results\rerun-v1-ablation
 ```
 
-Model responses are cached under `results/cache/`, so a second run makes no
-API calls and gives the same answers. Each question's tool calls are logged
-under `results/runs/`. The report is written to `docs/results/`.
+A run stops before doing anything if its report directory already holds a
+report, so the published results in `docs/results/` cannot be replaced by
+accident. Pass `--report-dir` to write somewhere else, or `--overwrite` to
+replace a report on purpose.
+
+Model responses are cached under `results/cache/`, so a second run on the same
+machine makes no API calls and gives the same answers. Each question's tool
+calls are logged under `results/runs/`.
 
 ## Repository layout
 
@@ -248,7 +324,8 @@ src/causal_agent/
 tests/      one test module per source module
 docs/
   decisions/  decision records
-  results/    results table, per-dataset scores, plot
+  results/    Benchmark v1: results table, per-dataset scores, plot
+    v1-ablation/  the no-tools ablation on Benchmark v1
   PROGRESS.md
 ```
 
@@ -257,3 +334,4 @@ docs/
 - [001: Synthetic dataset generator](docs/decisions/001-synthetic-generator.md)
 - [002: Estimators, fixed-pipeline baseline, and the three tools](docs/decisions/002-estimators-baseline-tools.md)
 - [003: Evaluation protocol](docs/decisions/003-evaluation-protocol.md)
+- [004: Benchmark v2](docs/decisions/004-benchmark-v2.md)

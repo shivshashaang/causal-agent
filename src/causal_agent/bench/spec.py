@@ -26,6 +26,20 @@ class Scenario(StrEnum):
     POST_OUTCOME_TRAP = "post_outcome_trap"
 
 
+class NonlinearFamily(StrEnum):
+    """Which nonlinear functions the treatment and outcome indices use.
+
+    The family only matters when `treatment_nonlinearity` or
+    `outcome_nonlinearity` is positive.
+    """
+
+    V1 = "v1"
+    """Benchmark v1: the treatment and the outcome each have their own function."""
+
+    SHARED = "shared"
+    """Benchmark v2: the treatment and the outcome use the same function."""
+
+
 class DatasetSpec(BaseModel):
     """Every parameter needed to generate one dataset reproducibly."""
 
@@ -53,6 +67,9 @@ class DatasetSpec(BaseModel):
 
     outcome_nonlinearity: float = Field(default=0.0, ge=0)
     """lambda_Y: weight of the nonlinear part of the outcome index."""
+
+    nonlinear_family: NonlinearFamily = NonlinearFamily.V1
+    """Which nonlinear functions lambda_T and lambda_Y switch on."""
 
     outcome_predictor_strength: float = Field(
         default=DEFAULT_OUTCOME_PREDICTOR_STRENGTH, ge=0
@@ -92,5 +109,10 @@ class DatasetSpec(BaseModel):
             raise ValueError(
                 f"scenario '{self.scenario.value}' requires {rule}; "
                 "the knobs given do not match"
+            )
+        if self.nonlinear_family is not NonlinearFamily.V1 and not nonlinear:
+            raise ValueError(
+                f"nonlinear_family '{self.nonlinear_family.value}' requires "
+                "lambda_T > 0 or lambda_Y > 0; with both at zero it has no effect"
             )
         return self

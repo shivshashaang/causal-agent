@@ -14,12 +14,15 @@ from causal_agent.bench.equations import (
     linear_part,
     outcome_index,
     outcome_reference_stats,
+    reference_sample,
+    shared_nonlinear_part,
     simulate,
     treatment_index,
 )
-from causal_agent.bench.spec import Scenario
+from causal_agent.bench.spec import NonlinearFamily, Scenario
 
 ALL_SCENARIOS = list(Scenario)
+SHARED = {"nonlinear_family": NonlinearFamily.SHARED}
 
 
 def _arrays(sample) -> dict[str, np.ndarray]:
@@ -171,6 +174,86 @@ def test_indices_are_not_linear_at_positive_nonlinearity() -> None:
     assert not np.allclose(outcome_index(c1, c2, 1.0), linear_part(c1, c2))
 
 
+def test_family_defaults_to_v1() -> None:
+    rng = np.random.default_rng(3)
+    c1, c2 = rng.standard_normal(500), rng.standard_normal(500)
+    for index in (treatment_index, outcome_index):
+        np.testing.assert_array_equal(
+            index(c1, c2, 1.0), index(c1, c2, 1.0, NonlinearFamily.V1)
+        )
+
+
+def test_shared_family_uses_one_function_for_both_indices() -> None:
+    rng = np.random.default_rng(3)
+    c1, c2 = rng.standard_normal(500), rng.standard_normal(500)
+    shared_h = treatment_index(c1, c2, 1.0, NonlinearFamily.SHARED)
+    shared_g = outcome_index(c1, c2, 1.0, NonlinearFamily.SHARED)
+    np.testing.assert_array_equal(shared_h, shared_g)
+    assert not np.allclose(shared_h, treatment_index(c1, c2, 1.0))
+    assert not np.allclose(shared_g, outcome_index(c1, c2, 1.0))
+
+
+def test_family_does_not_matter_at_zero_nonlinearity() -> None:
+    rng = np.random.default_rng(3)
+    c1, c2 = rng.standard_normal(500), rng.standard_normal(500)
+    for index in (treatment_index, outcome_index):
+        np.testing.assert_array_equal(
+            index(c1, c2, 0.0, NonlinearFamily.SHARED), linear_part(c1, c2)
+        )
+
+
+def test_shared_family_reaches_both_treatment_and_outcome(make_spec) -> None:
+    """Switching the family changes who is treated and what they score."""
+    v1 = simulate(make_spec(Scenario.CONFOUNDED_NONLINEAR))
+    shared = simulate(make_spec(Scenario.CONFOUNDED_NONLINEAR, **SHARED))
+    np.testing.assert_array_equal(v1.c1, shared.c1)
+    np.testing.assert_array_equal(v1.c2, shared.c2)
+    assert not np.array_equal(v1.t, shared.t)
+    assert not np.allclose(v1.y0, shared.y0)
+
+
+def test_treatment_unchanged_when_only_the_outcome_side_is_nonlinear(
+    make_spec,
+) -> None:
+    """With lambda_T at zero the family cannot reach the treatment."""
+    knobs = {"treatment_nonlinearity": 0.0, "outcome_nonlinearity": 1.0}
+    v1 = simulate(make_spec(Scenario.CONFOUNDED_NONLINEAR, **knobs))
+    shared = simulate(make_spec(Scenario.CONFOUNDED_NONLINEAR, **knobs, **SHARED))
+    np.testing.assert_array_equal(v1.t, shared.t)
+    np.testing.assert_array_equal(v1.propensity, shared.propensity)
+
+
+@pytest.mark.parametrize(
+    "knobs",
+    [
+        {"treatment_nonlinearity": 0.0, "outcome_nonlinearity": 1.0},
+        {"treatment_nonlinearity": 1.0, "outcome_nonlinearity": 0.0},
+        {"treatment_nonlinearity": 1.0, "outcome_nonlinearity": 1.0},
+    ],
+)
+def test_shared_family_keeps_a_constant_unit_level_effect(make_spec, knobs) -> None:
+    spec = make_spec(Scenario.CONFOUNDED_NONLINEAR, true_ate=0.37, **knobs, **SHARED)
+    sample = simulate(spec)
+    np.testing.assert_allclose(sample.y1 - sample.y0, 0.37, atol=1e-12)
+    np.testing.assert_array_equal(
+        sample.y, np.where(sample.t == 1, sample.y1, sample.y0)
+    )
+
+
+def test_shared_family_has_its_own_outcome_reference_stats(make_spec) -> None:
+    v1 = outcome_reference_stats(make_spec(Scenario.CONFOUNDED_NONLINEAR))
+    shared = outcome_reference_stats(make_spec(Scenario.CONFOUNDED_NONLINEAR, **SHARED))
+    assert v1 != shared
+
+
+def test_reference_sample_ignores_seed_and_rows(make_spec) -> None:
+    first = reference_sample(make_spec(seed=1, n_rows=50))
+    second = reference_sample(make_spec(seed=2, n_rows=80))
+    assert len(first.y) == equations.REFERENCE_ROWS
+    assert first.k is None
+    np.testing.assert_array_equal(first.y, second.y)
+
+
 def test_trap_column_exists_only_in_the_trap_scenario(make_spec) -> None:
     assert simulate(make_spec(Scenario.CONFOUNDED_LINEAR)).k is None
     assert simulate(make_spec(Scenario.POST_OUTCOME_TRAP)).k is not None
@@ -263,6 +346,65 @@ def test_nonlinear_index_is_centred_with_unit_variance(index) -> None:
     values = index(c1, c2, 1.0)
     assert abs(values.mean()) < 0.02
     assert abs(values.std() - 1.0) < 0.02
+
+
+@pytest.mark.statistical
+@pytest.mark.parametrize("index", [treatment_index, outcome_index])
+def test_shared_index_is_centred_with_unit_variance(index) -> None:
+    rng = np.random.default_rng(11)
+    c1, c2 = rng.standard_normal(200_000), rng.standard_normal(200_000)
+    values = index(c1, c2, 1.0, NonlinearFamily.SHARED)
+    assert abs(values.mean()) < 0.02
+    assert abs(values.std() - 1.0) < 0.02
+
+
+@pytest.mark.statistical
+def test_shared_part_is_invisible_to_a_straight_line() -> None:
+    """Mean zero and uncorrelated with each confounder and the linear index.
+
+    The covariances are exactly zero in the population. The part still
+    depends on the confounders, so the sampling error of a covariance is not
+    1 / sqrt(rows); it is measured from the products instead.
+    """
+    rows = 200_000
+    rng = np.random.default_rng(12)
+    c1, c2 = rng.standard_normal(rows), rng.standard_normal(rows)
+    part = shared_nonlinear_part(c1, c2)
+    assert abs(part.mean()) <= 4 * part.std() / np.sqrt(rows)
+    for straight in (c1, c2, linear_part(c1, c2)):
+        products = part * straight
+        assert abs(products.mean()) <= 4 * products.std() / np.sqrt(rows)
+
+
+@pytest.mark.statistical
+@pytest.mark.parametrize(
+    "knobs",
+    [
+        {"treatment_nonlinearity": 0.0, "outcome_nonlinearity": 1.0},
+        {"treatment_nonlinearity": 1.0, "outcome_nonlinearity": 0.0},
+        {"treatment_nonlinearity": 1.0, "outcome_nonlinearity": 1.0},
+    ],
+)
+def test_forced_treatment_difference_recovers_true_ate_in_shared_family(
+    make_spec, knobs
+) -> None:
+    true_ate, rows = -0.62, 200_000
+    scenario = Scenario.CONFOUNDED_NONLINEAR
+    treated = simulate(
+        make_spec(
+            scenario, true_ate=true_ate, n_rows=rows, seed=101, **knobs, **SHARED
+        ),
+        do_treatment=1,
+    )
+    control = simulate(
+        make_spec(
+            scenario, true_ate=true_ate, n_rows=rows, seed=202, **knobs, **SHARED
+        ),
+        do_treatment=0,
+    )
+    difference = treated.y.mean() - control.y.mean()
+    standard_error = np.sqrt(treated.y.var() / rows + control.y.var() / rows)
+    assert abs(difference - true_ate) <= 4 * standard_error
 
 
 @pytest.mark.statistical

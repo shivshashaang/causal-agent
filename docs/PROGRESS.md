@@ -152,6 +152,14 @@ CI passed. The owner approved Benchmark v2 (see Next).
     gives the same files. Continuous columns are compared by weighted sums
     with a 1e-9 relative tolerance, not by a byte hash, because `exp` and
     `tanh` can differ in the last bit between machines.
+  - `bench/spec.py` and `bench/equations.py`: a second nonlinear family.
+    `nonlinear_family` is `v1` by default (the original functions) or
+    `shared`, where the treatment index and the outcome index use the same
+    function `(c1^2 - 1)/sqrt(2) + c1*c2`. `shared` is rejected unless
+    `lambda_T` or `lambda_Y` is positive. `reference_sample(spec)` exposes
+    the fixed-seed 1,000,000-row sample. v1 public files are byte-identical
+    after this change; v1 truth files differ only by the new spec field
+    `nonlinear_family: "v1"`.
 
 ## Verification status
 

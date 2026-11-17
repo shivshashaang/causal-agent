@@ -7,6 +7,14 @@
 Every normalizing constant (for h, g and Y) is a fixed reference statistic
 computed from a fixed seed, so no row's value depends on any other row.
 
+h and g are a linear index plus a weighted nonlinear part. A spec's
+`nonlinear_family` picks the nonlinear parts:
+
+    v1      h uses an interaction plus a threshold, g a square plus a
+            saturating curve. The two parts are nearly unrelated.
+    shared  h and g use the same function, so the confounders drive treatment
+            and outcome through the same curve.
+
 Everything here is private to the generator and its tests. The potential
 outcomes `y0` and `y1` exist so tests can verify the true ATE; they must never
 be written to a public dataset.
@@ -19,7 +27,7 @@ from functools import cache
 import numpy as np
 import numpy.typing as npt
 
-from causal_agent.bench.spec import DatasetSpec
+from causal_agent.bench.spec import DatasetSpec, NonlinearFamily
 
 FloatArray = npt.NDArray[np.float64]
 IntArray = npt.NDArray[np.int64]
@@ -38,9 +46,10 @@ _OUTCOME_KNOBS = (
     "outcome_noise",
     "treatment_nonlinearity",
     "outcome_nonlinearity",
+    "nonlinear_family",
     "outcome_predictor_strength",
 )
-_outcome_reference_cache: dict[tuple[float, ...], tuple[float, float]] = {}
+_outcome_reference_cache: dict[tuple[object, ...], tuple[float, float]] = {}
 
 # One independent random stream per variable, so changing a knob that affects
 # one variable cannot shift the random numbers used by another.
@@ -53,18 +62,36 @@ def linear_part(c1: FloatArray, c2: FloatArray) -> FloatArray:
 
 
 def nonlinear_treatment_part(c1: FloatArray, c2: FloatArray) -> FloatArray:
-    """An interaction plus a threshold."""
+    """v1 family, treatment side: an interaction plus a threshold."""
     return c1 * c2 + (c1 > 0.5)
 
 
 def nonlinear_outcome_part(c1: FloatArray, c2: FloatArray) -> FloatArray:
-    """A square plus a saturating curve."""
+    """v1 family, outcome side: a square plus a saturating curve."""
     return c2**2 + np.tanh(c1 + 0.5)
+
+
+def shared_nonlinear_part(c1: FloatArray, c2: FloatArray) -> FloatArray:
+    """Shared family, both sides: a U-shape in c1 plus an interaction.
+
+    It has mean zero and is uncorrelated with c1, with c2 and with the linear
+    index, so no straight line through the confounders can stand in for it.
+    """
+    return (c1**2 - 1.0) / np.sqrt(2.0) + c1 * c2
+
+
+NonlinearPart = Callable[[FloatArray, FloatArray], FloatArray]
+
+# (treatment side, outcome side) for each family.
+_NONLINEAR_PARTS: dict[NonlinearFamily, tuple[NonlinearPart, NonlinearPart]] = {
+    NonlinearFamily.V1: (nonlinear_treatment_part, nonlinear_outcome_part),
+    NonlinearFamily.SHARED: (shared_nonlinear_part, shared_nonlinear_part),
+}
 
 
 @cache
 def _centre_and_scale(
-    nonlinear_part: Callable[[FloatArray, FloatArray], FloatArray],
+    nonlinear_part: NonlinearPart,
     nonlinearity: float,
 ) -> tuple[float, float]:
     """Population mean and standard deviation of the raw index."""
@@ -78,7 +105,7 @@ def _centre_and_scale(
 
 
 def _index(
-    nonlinear_part: Callable[[FloatArray, FloatArray], FloatArray],
+    nonlinear_part: NonlinearPart,
     c1: FloatArray,
     c2: FloatArray,
     nonlinearity: float,
@@ -88,19 +115,29 @@ def _index(
     return (raw - centre) / scale
 
 
-def treatment_index(c1: FloatArray, c2: FloatArray, nonlinearity: float) -> FloatArray:
+def treatment_index(
+    c1: FloatArray,
+    c2: FloatArray,
+    nonlinearity: float,
+    family: NonlinearFamily = NonlinearFamily.V1,
+) -> FloatArray:
     """h(C): mean zero, unit variance. Exactly linear when nonlinearity is 0."""
-    return _index(nonlinear_treatment_part, c1, c2, nonlinearity)
+    return _index(_NONLINEAR_PARTS[family][0], c1, c2, nonlinearity)
 
 
-def outcome_index(c1: FloatArray, c2: FloatArray, nonlinearity: float) -> FloatArray:
+def outcome_index(
+    c1: FloatArray,
+    c2: FloatArray,
+    nonlinearity: float,
+    family: NonlinearFamily = NonlinearFamily.V1,
+) -> FloatArray:
     """g(C): mean zero, unit variance. Exactly linear when nonlinearity is 0."""
-    return _index(nonlinear_outcome_part, c1, c2, nonlinearity)
+    return _index(_NONLINEAR_PARTS[family][1], c1, c2, nonlinearity)
 
 
 def propensity(c1: FloatArray, c2: FloatArray, spec: DatasetSpec) -> FloatArray:
     """True probability of treatment for each row."""
-    index = treatment_index(c1, c2, spec.treatment_nonlinearity)
+    index = treatment_index(c1, c2, spec.treatment_nonlinearity, spec.nonlinear_family)
     return 1.0 / (1.0 + np.exp(-spec.assignment_strength * index))
 
 
@@ -116,7 +153,7 @@ def potential_outcome(
     return (
         spec.true_ate * treatment
         + spec.confounder_outcome_strength
-        * outcome_index(c1, c2, spec.outcome_nonlinearity)
+        * outcome_index(c1, c2, spec.outcome_nonlinearity, spec.nonlinear_family)
         + spec.outcome_predictor_strength * p
         + spec.outcome_noise * noise
     )
@@ -138,6 +175,21 @@ class StructuralSample:
     k: FloatArray | None
 
 
+def reference_sample(spec: DatasetSpec) -> StructuralSample:
+    """A large sample drawn under a spec's equations with the fixed reference seed.
+
+    It depends only on the knobs, never on the dataset's seed or row count,
+    and it has no trap column. Used for population-level facts about a spec.
+    """
+    return _simulate(
+        spec,
+        seed=REFERENCE_SEED,
+        n_rows=REFERENCE_ROWS,
+        do_treatment=None,
+        include_trap=False,
+    )
+
+
 def outcome_reference_stats(spec: DatasetSpec) -> tuple[float, float]:
     """Fixed mean and standard deviation of the observed outcome for a spec.
 
@@ -147,13 +199,7 @@ def outcome_reference_stats(spec: DatasetSpec) -> tuple[float, float]:
     """
     key = tuple(getattr(spec, name) for name in _OUTCOME_KNOBS)
     if key not in _outcome_reference_cache:
-        reference = _simulate(
-            spec,
-            seed=REFERENCE_SEED,
-            n_rows=REFERENCE_ROWS,
-            do_treatment=None,
-            include_trap=False,
-        )
+        reference = reference_sample(spec)
         _outcome_reference_cache[key] = (
             float(reference.y.mean()),
             float(reference.y.std()),

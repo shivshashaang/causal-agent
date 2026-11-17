@@ -23,11 +23,20 @@ from typing import Any
 import numpy as np
 
 from causal_agent.bench.generate import GeneratedDataset
-from causal_agent.bench.spec import DatasetSpec
+from causal_agent.bench.spec import DatasetSpec, NonlinearFamily
 
 
 def _spec_record(spec: DatasetSpec) -> dict[str, Any]:
-    return spec.model_dump(mode="json")
+    """Every knob of a spec.
+
+    `nonlinear_family` was added after Benchmark v1 was frozen. It is left out
+    when it holds its v1 value, so a v1 digest still covers exactly the fields
+    that existed when v1 was recorded.
+    """
+    record = spec.model_dump(mode="json")
+    if spec.nonlinear_family is NonlinearFamily.V1:
+        del record["nonlinear_family"]
+    return record
 
 
 def spec_digest(specs: Iterable[DatasetSpec]) -> str:

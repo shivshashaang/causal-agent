@@ -136,29 +136,35 @@ Last updated: 2026-11-16
       fixed-pipeline estimates (`ds_001`, `ds_027`). The agent refuted its
       own final method on 10 of 30 questions; all passed.
 
-**Checkpoint 3 reached: full evaluation complete. Waiting for the owner's
-review. Nothing on `step-2-baseline-tools` or `step-4-agent-eval` has been
-pushed.**
+**Checkpoint 3 reviewed by the owner.** `step-2-baseline-tools` was merged
+into `main` through PR #3 after CI passed. `step-4-agent-eval` is PR #4,
+retargeted to `main`. The owner approved Benchmark v2 (see Next).
 
 ## Verification status
 
 - CI passed on PR #1 and PR #2. PR #2 ran all 505 tests on Linux, so the
   generator's tests are not sensitive to the Windows/Linux difference.
-- `step-2-baseline-tools` and `step-4-agent-eval`: local checks pass before
-  every commit (`uv run ruff check .`, `uv run ruff format --check .`,
-  `uv run pytest`; 780 tests). CI has not run on either branch.
+- CI passed on PR #3 (`step-2-baseline-tools`) and on PR #4
+  (`step-4-agent-eval`) while it was stacked on PR #3. Local checks pass
+  before every commit (`uv run ruff check .`, `uv run ruff format --check .`,
+  `uv run pytest`; 780 tests).
 - The agent loop and no-tools baseline are unit-tested with a scripted model
   and were then run against the real API on all 30 datasets.
 
 ## Next
 
-1. Owner reviews checkpoint 3 and answers the open questions below.
-2. With the owner's approval: push `step-2-baseline-tools` and
-   `step-4-agent-eval`, open pull requests, confirm CI, merge.
-3. Possible follow-ups, only if the owner wants them: a harder benchmark
-   (hidden confounding, an outcome nonlinearity that biases linear
-   regression, non-round true effects), a specification-check refuter, a
-   leaner summary for the no-tools baseline.
+1. Merge PR #4 once CI passes against `main`, then create
+   `step-5-benchmark-v2` from the updated `main`.
+2. Benchmark v2, approved by the owner: 20 datasets (`ds_101` to `ds_120`)
+   with a nonlinear feature shared by the treatment and outcome equations,
+   varied non-round true effects and two zero-effect datasets. v1 datasets,
+   results and run settings stay as they are. Specs, validation tests and
+   ADR 004 are frozen before any LLM evaluation.
+3. Also approved: an estimator-disagreement check inside `refute_estimate`
+   (uncertainty method to be proposed to the owner first), a no-tools
+   ablation without the correlation matrix on v1 and v2, and removal of the
+   unused `dowhy` dependency.
+4. Stop for the owner's review before running the v2 LLM evaluation.
 
 ## Working rules set by the owner
 

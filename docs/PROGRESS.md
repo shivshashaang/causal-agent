@@ -170,6 +170,12 @@ CI passed. The owner approved Benchmark v2 (see Next).
     `tests/bench/test_suite_v2.py` checks shape, effects, the v1 public
     schema, valid adjustment sets, overlap (same thresholds as v1) and that a
     regression given the true curve recovers the effect.
+  - `bench/design.py`: `linear_regression_bias(spec)` records how far a
+    linear regression on all pre-treatment covariates would land from the
+    true effect with unlimited data (1,000,000-row reference sample, robust
+    standard error). Recorded only; the owner ruled that it must not be a
+    dataset selection gate. Tests assert it only where theory fixes it at
+    zero (linear outcome or randomized treatment).
 
 ## Verification status
 

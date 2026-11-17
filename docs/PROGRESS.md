@@ -99,6 +99,11 @@ Last updated: 2026-11-16
     propensity-model correctness, the chosen estimator's own assumption, and
     overlap. For the doubly robust estimator the model-fit assumption is
     recorded as unknown, never as guaranteed.
+  - `eval/report.py`: results Markdown (accuracy with tolerance sensitivity,
+    by scenario, validity 2x2, estimator choice, refutation outcomes, agent
+    behaviour, every dataset), a CSV with one row per approach and dataset,
+    and one dot plot of error by approach and scenario. Adds `matplotlib` as
+    a dependency. Plot colours were checked with the dataviz validator.
   - First real API calls (one dataset, `ds_001`): the request shape works.
     The no-tools model solved a regression by hand from the correlation
     table and landed within tolerance, so the shared summary is informative

@@ -99,11 +99,26 @@ class AgentRun(BaseModel):
         )
 
     def refutations_of_final_method(self) -> dict[str, bool]:
-        """Refuters the agent ran on its final method, with pass or fail."""
+        """Pass-or-fail refuters the agent ran on its final method.
+
+        The estimator-disagreement check has a three-way verdict, not a pass
+        or fail, and is reported by `disagreement_checks`.
+        """
         return {
             call.output["refuter"]: call.output["passed"]
             for call in self._calls_for_final_method("refute_estimate")
+            if "passed" in call.output
         }
+
+    def disagreement_checks(self) -> tuple[tuple[str, str], ...]:
+        """Every estimator-disagreement check the agent ran: (estimator, verdict)."""
+        return tuple(
+            (call.output["estimator"], call.output["verdict"])
+            for call in self.tool_calls
+            if call.tool == "refute_estimate"
+            and call.output is not None
+            and "verdict" in call.output
+        )
 
 
 def system_prompt(settings: Settings) -> str:

@@ -208,14 +208,24 @@ CI passed. The owner approved Benchmark v2 (see Next).
     written; the ablation is a labelled addendum; a short Benchmark v2
     section says v2 is frozen and not yet run.
 
-**Waiting for the owner's review of the frozen v2 benchmark. Do not run any
-LLM approach on v2 before the owner approves.**
+  - The owner approved the frozen v2 benchmark, the paired standard error
+    and the 0.10 SD materiality bound, and authorized the final
+    implementation and one v2 evaluation. `step-5-benchmark-v2` is pushed as
+    PR #5.
+  - Estimator-disagreement check (ADR 005). Every estimator now returns one
+    contribution per row whose mean is its estimate. `refute_estimate` has a
+    fourth check, `estimator_disagreement`: it compares the estimate with one
+    from the other model family on the same adjustment set, computes a paired
+    standard error from the row contributions, and returns `disagreement`,
+    `agreement` or `inconclusive` against a bound of 0.10 outcome SDs. The
+    three original checks, their outputs and their cached results are
+    unchanged (`STABILITY_REFUTERS`). The agent can call the new check, so
+    its toolset now differs from the one used for the v1 results (commit
+    `67ee865`).
 
-Still to do after the owner approves:
+Still to do:
 
-1. The estimator-disagreement check in `refute_estimate`. The owner must
-   first approve the uncertainty method (a paired standard error from
-   per-row influence values was proposed, with a three-way verdict).
+1. Done: the estimator-disagreement check.
 2. A way to run the evaluation on v2 (`data/benchmark_v2`, `docs/results/v2`),
    with the ablation as a fourth approach and the v2 spec digest and freeze
    commit recorded in the report.

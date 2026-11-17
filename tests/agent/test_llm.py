@@ -40,6 +40,21 @@ def _cached(tmp_path, client=None):
     return CachedLLM(lambda: client, tmp_path / "cache"), client
 
 
+def test_model_identifiers_reported_by_the_api_are_recorded(tmp_path) -> None:
+    class NamingClient:
+        def create(self, request: dict) -> dict:
+            return {"content": [], "stop_reason": "end_turn", "model": "model-a-0001"}
+
+    llm = CachedLLM(lambda: NamingClient(), tmp_path / "cache")
+    llm.create(_request())
+    assert llm.response_models == {"model-a-0001"}
+
+    replay = CachedLLM(lambda: NamingClient(), tmp_path / "cache")
+    replay.create(_request())
+    assert (replay.hits, replay.misses) == (1, 0)
+    assert replay.response_models == {"model-a-0001"}
+
+
 def test_identical_request_is_served_from_disk(tmp_path) -> None:
     llm, client = _cached(tmp_path)
     first = llm.create(_request())

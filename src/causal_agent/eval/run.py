@@ -46,6 +46,7 @@ from causal_agent.eval.report import (
 from causal_agent.eval.score import score_answer
 from causal_agent.tools.estimators import EstimatorName
 from causal_agent.tools.refute_estimate import (
+    STABILITY_REFUTERS,
     RefuteEstimateInput,
     RefuterName,
     refute_estimate,
@@ -67,7 +68,11 @@ def refute_final_method(
     root: Path,
     cache_dir: Path,
 ) -> dict[str, bool] | None:
-    """Run every applicable refuter on a method; results are cached on disk.
+    """Run the three pass-or-fail refuters on a method; results are cached on disk.
+
+    The estimator-disagreement check is separate (`disagreement_of_final_method`)
+    so these results keep the meaning they had in the Benchmark v1 evaluation.
+
 
     Returns None when the method cannot be run: no recognized estimator, or an
     adjustment set that names something other than a covariate column.
@@ -80,7 +85,7 @@ def refute_final_method(
         return None
 
     outcomes: dict[str, bool] = {}
-    for refuter in RefuterName:
+    for refuter in STABILITY_REFUTERS:
         if (
             estimator is EstimatorName.DIFFERENCE_IN_MEANS
             and refuter is RefuterName.RANDOM_COMMON_CAUSE
@@ -103,6 +108,40 @@ def refute_final_method(
             path.write_text(output.model_dump_json(indent=1), encoding="utf-8")
         outcomes[refuter.value] = passed
     return outcomes
+
+
+def disagreement_of_final_method(
+    dataset_id: str,
+    estimator: EstimatorName | None,
+    adjustment_set: Sequence[str],
+    root: Path,
+    cache_dir: Path,
+) -> dict[str, Any] | None:
+    """Run the estimator-disagreement check on a method; cached on disk.
+
+    Returns the check's output as a dict, or None when the method cannot be
+    run (same rule as `refute_final_method`).
+    """
+    if estimator is None:
+        return None
+    _, metadata = load_public(dataset_id, root)
+    covariates = {column.name for column in metadata.covariates}
+    if not set(adjustment_set) <= covariates:
+        return None
+    request = RefuteEstimateInput(
+        dataset_id=dataset_id,
+        estimator=estimator,
+        adjustment_set=tuple(sorted(adjustment_set)),
+        refuter=RefuterName.ESTIMATOR_DISAGREEMENT,
+    )
+    key = hashlib.sha256(request.model_dump_json().encode("utf-8")).hexdigest()
+    path = Path(cache_dir) / "refutations" / f"{key}.json"
+    if path.exists():
+        return json.loads(path.read_text(encoding="utf-8"))
+    output = refute_estimate(request, root).model_dump(mode="json")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(output, indent=1), encoding="utf-8")
+    return output
 
 
 def _run_approach(

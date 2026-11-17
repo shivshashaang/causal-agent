@@ -64,16 +64,21 @@ class CachedLLM:
         self._cache_dir = Path(cache_dir)
         self.hits = 0
         self.misses = 0
+        self.response_models: set[str] = set()
+        """Model identifiers the API reported in its responses, cached or new."""
 
     def create(self, request: Request) -> Response:
         path = self._cache_dir / f"{request_key(request)}.json"
         if path.exists():
             self.hits += 1
-            return json.loads(path.read_text(encoding="utf-8"))["response"]
+            response = json.loads(path.read_text(encoding="utf-8"))["response"]
+            self._note_model(response)
+            return response
 
         if self._client is None:
             self._client = self._client_factory()
         response = self._client.create(request)
+        self._note_model(response)
         self.misses += 1
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         entry = {"request": request, "response": response}
@@ -81,6 +86,11 @@ class CachedLLM:
             json.dumps(entry, ensure_ascii=False, indent=1), encoding="utf-8"
         )
         return response
+
+    def _note_model(self, response: Response) -> None:
+        model = response.get("model")
+        if isinstance(model, str):
+            self.response_models.add(model)
 
 
 def assistant_content(response: Response) -> list[dict[str, Any]]:

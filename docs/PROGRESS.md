@@ -176,6 +176,16 @@ CI passed. The owner approved Benchmark v2 (see Next).
     standard error). Recorded only; the owner ruled that it must not be a
     dataset selection gate. Tests assert it only where theory fixes it at
     zero (linear outcome or randomized treatment).
+  - **Benchmark v2 is frozen.** `tests/bench/frozen/v2.json` holds the spec
+    digest (`e06a2ef6...6867`) and a fingerprint per dataset;
+    `docs/decisions/004-benchmark-v2.md` holds the design, the full spec
+    table, the validation list and the freeze rule. At the freeze no LLM
+    approach and no doubly robust estimate had been run on any v2 dataset.
+    The six "both sides" datasets have a recorded linear-regression bias of
+    0.100 to 0.502 SD; every other v2 dataset is at or below 0.003 SD.
+
+**Waiting for the owner's review of the frozen v2 benchmark. Do not run any
+LLM approach on v2 before the owner approves.**
 
 ## Verification status
 
@@ -210,7 +220,11 @@ CI passed. The owner approved Benchmark v2 (see Next).
 - No Claude or AI co-author attribution in commit messages.
 - Do not push or merge without the owner's say-so.
 - Stop for review at three checkpoints: generator and metadata (done), tools
-  and baselines, full evaluation.
+  and baselines (done), full evaluation (done).
+- Benchmark v2: do not tune datasets based on which approach performs better.
+  The specs are frozen and must not change after any approach has run.
+- Preserve all Benchmark v1 results, documentation and run settings. Never
+  overwrite `docs/results/` from a v2 or ablation run.
 - Do not silently resolve major causal-inference decisions. Report design
   deviations at each checkpoint.
 

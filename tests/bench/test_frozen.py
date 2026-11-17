@@ -13,7 +13,7 @@ import pytest
 
 from causal_agent.bench.fingerprint import dataset_fingerprint, spec_digest
 from causal_agent.bench.generate import generate
-from causal_agent.bench.suite import benchmark_specs
+from causal_agent.bench.suite import benchmark_specs, benchmark_v2_specs
 
 FROZEN = Path(__file__).parent / "frozen"
 
@@ -70,3 +70,28 @@ def test_v1_dataset_is_unchanged(spec) -> None:
     _assert_matches(
         dataset_fingerprint(generate(spec)), V1_RECORD["datasets"][spec.dataset_id]
     )
+
+
+# Benchmark v2 was recorded when its specs were frozen (ADR 004), before any
+# approach had been run on it.
+V2_SPECS = benchmark_v2_specs()
+V2_RECORD = _record("v2.json")
+
+
+def test_v2_spec_digest_is_unchanged() -> None:
+    assert spec_digest(V2_SPECS) == V2_RECORD["spec_digest"]
+
+
+def test_v2_record_covers_exactly_the_twenty_datasets() -> None:
+    assert sorted(V2_RECORD["datasets"]) == [spec.dataset_id for spec in V2_SPECS]
+
+
+@pytest.mark.parametrize("spec", V2_SPECS, ids=[spec.dataset_id for spec in V2_SPECS])
+def test_v2_dataset_is_unchanged(spec) -> None:
+    _assert_matches(
+        dataset_fingerprint(generate(spec)), V2_RECORD["datasets"][spec.dataset_id]
+    )
+
+
+def test_the_two_benchmarks_have_different_digests() -> None:
+    assert V1_RECORD["spec_digest"] != V2_RECORD["spec_digest"]

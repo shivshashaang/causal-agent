@@ -143,6 +143,15 @@ CI passed. The owner approved Benchmark v2 (see Next).
 - **Step 5, Benchmark v2.** On branch `step-5-benchmark-v2` (not pushed).
   - Removed the `dowhy` dependency. It was never imported in `src/` or
     `tests/`; every package the code imports is a direct dependency.
+  - `bench/fingerprint.py` and `tests/bench/test_frozen.py`: v1 is now
+    frozen by a recorded spec digest and one fingerprint per dataset
+    (`tests/bench/frozen/v1.json`). The record was written from the untouched
+    generator, before any v2 change, and the regenerated public files were
+    byte-identical to the ones the v1 evaluation used. Until this commit
+    there was no stored hash: the older test only checked that writing twice
+    gives the same files. Continuous columns are compared by weighted sums
+    with a 1e-9 relative tolerance, not by a byte hash, because `exp` and
+    `tanh` can differ in the last bit between machines.
 
 ## Verification status
 

@@ -104,6 +104,11 @@ Last updated: 2026-11-16
     behaviour, every dataset), a CSV with one row per approach and dataset,
     and one dot plot of error by approach and scenario. Adds `matplotlib` as
     a dependency. Plot colours were checked with the dataviz validator.
+  - `eval/run.py`: `python -m causal_agent.eval.run` generates the benchmark
+    under `data/benchmark/` (gitignored), runs the three approaches, logs
+    each question to `results/runs/`, reads ground truth only after an
+    approach has answered, and writes `docs/results/`. `--refute` also runs
+    every applicable refuter on each final method, cached on disk.
   - First real API calls (one dataset, `ds_001`): the request shape works.
     The no-tools model solved a regression by hand from the correlation
     table and landed within tolerance, so the shared summary is informative

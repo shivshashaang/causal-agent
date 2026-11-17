@@ -160,6 +160,16 @@ CI passed. The owner approved Benchmark v2 (see Next).
     the fixed-seed 1,000,000-row sample. v1 public files are byte-identical
     after this change; v1 truth files differ only by the new spec field
     `nonlinear_family: "v1"`.
+  - `bench/suite.py`: `benchmark_v2_specs()` returns the 20 v2 specs,
+    `ds_101` to `ds_120`, master seed 2. Randomized 2, confounded linear 4,
+    confounded nonlinear 10 (outcome side only 2, treatment side only 2, both
+    sides 6), post-outcome trap 4. True effects are a seeded draw from
+    Uniform(-2, 2) rounded to two decimals; two datasets picked by a seeded
+    draw are set to zero. That draw put both zeros on trap datasets
+    (`ds_106`, `ds_113`); it was not redrawn.
+    `tests/bench/test_suite_v2.py` checks shape, effects, the v1 public
+    schema, valid adjustment sets, overlap (same thresholds as v1) and that a
+    regression given the true curve recovers the effect.
 
 ## Verification status
 

@@ -137,8 +137,12 @@ Last updated: 2026-11-16
       own final method on 10 of 30 questions; all passed.
 
 **Checkpoint 3 reviewed by the owner.** `step-2-baseline-tools` was merged
-into `main` through PR #3 after CI passed. `step-4-agent-eval` is PR #4,
-retargeted to `main`. The owner approved Benchmark v2 (see Next).
+into `main` through PR #3 and `step-4-agent-eval` through PR #4, each after
+CI passed. The owner approved Benchmark v2 (see Next).
+
+- **Step 5, Benchmark v2.** On branch `step-5-benchmark-v2` (not pushed).
+  - Removed the `dowhy` dependency. It was never imported in `src/` or
+    `tests/`; every package the code imports is a direct dependency.
 
 ## Verification status
 
@@ -153,8 +157,7 @@ retargeted to `main`. The owner approved Benchmark v2 (see Next).
 
 ## Next
 
-1. Merge PR #4 once CI passes against `main`, then create
-   `step-5-benchmark-v2` from the updated `main`.
+1. Done: PR #4 merged, `step-5-benchmark-v2` created from `main`.
 2. Benchmark v2, approved by the owner: 20 datasets (`ds_101` to `ds_120`)
    with a nonlinear feature shared by the treatment and outcome equations,
    varied non-round true effects and two zero-effect datasets. v1 datasets,
@@ -212,11 +215,10 @@ Record each one when the part it belongs to is built.
 - ADR 001 keeps two items marked "approved without a stated reason"
   (5,000 rows; the nonlinear function forms). The owner chose to leave them
   marked that way. Do not fill them in.
-- Three questions from checkpoint 2 are still unanswered (the owner replied
-  "continue"): add a refuter that targets the benchmark's failure modes or
-  report the zero catch rate; change the nonlinear functions or leave them;
-  keep or remove the unused `dowhy` dependency. The no-change option is in
-  force for each.
+- The three questions from checkpoint 2 were answered at the checkpoint 3
+  review: add an estimator-disagreement check to `refute_estimate`; leave the
+  v1 nonlinear functions alone and add a second family for v2; remove
+  `dowhy`.
 - ADR 002 and ADR 003 each list choices Claude made during implementation
   that the owner has not reviewed, and each has one item marked "approved
   without a stated reason" (AIPW over an outcome model alone; the value 0.10

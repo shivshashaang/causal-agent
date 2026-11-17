@@ -64,22 +64,107 @@ Last updated: 2026-11-16
       The test is calibrated: 60 of 1,200 null tests rejected on fresh
       randomized data.
 
+- **Steps 4 to 6, agent, no-tools baseline and evaluation.** On branch
+  `step-4-agent-eval`, stacked on `step-2-baseline-tools` (neither pushed).
+  The owner replied "continue" to the checkpoint 2 report without answering
+  its three questions, so the no-change options are in force until the owner
+  says otherwise: no new refuter, nonlinear functions untouched, `dowhy`
+  left in place.
+  - `config.py`: `Settings` (model `claude-haiku-5-5`, 8-step cap, tolerance
+    0.10 SD with sensitivity 0.05/0.10/0.20, paths) and `load_api_key`, which
+    reads `AGENT_LLM_KEY` only.
+  - `agent/llm.py`: `AnthropicClient` (raw SDK, key passed explicitly) and
+    `CachedLLM`, a disk cache keyed by a hash of the whole request. A fully
+    cached run needs no key. Thinking blocks are replayed unchanged.
+  - `agent/summary.py`: deterministic text summary of the public data
+    (column statistics, means by treatment group, correlations). The agent
+    and the no-tools baseline both receive exactly this.
+  - `agent/answer.py`: the final-answer JSON format (estimate, estimator,
+    adjustment set) and a lenient parser shared by both LLM approaches.
+  - `agent/toolbox.py`: the three tool definitions sent to the model (JSON
+    schemas generated from the pydantic input models, minus `dataset_id`)
+    and `execute_tool`. The loop fixes the dataset; the model cannot pass
+    one. Bad calls come back as readable error results.
+  - `agent/loop.py`: the agent loop on the raw Anthropic SDK. One model call
+    is one step, capped at 8; the last step cannot call tools. Every tool
+    call is recorded with input, output and error. The system prompt gives no
+    rule about which columns to adjust for. Tested with a scripted model
+    only; no real API call has been made yet.
+  - `agent/no_tools.py`: the no-tools baseline. Same model, same summary, no
+    tools, one call plus at most one repair request. Its estimator and
+    adjustment set are self-reported.
+  - `eval/score.py`: scores one answer against ground truth. Accuracy
+    (within a multiple of the outcome SD) and validity are separate. Validity
+    records adjustment-set validity, outcome-model correctness,
+    propensity-model correctness, the chosen estimator's own assumption, and
+    overlap. For the doubly robust estimator the model-fit assumption is
+    recorded as unknown, never as guaranteed.
+  - `eval/report.py`: results Markdown (accuracy with tolerance sensitivity,
+    by scenario, validity 2x2, estimator choice, refutation outcomes, agent
+    behaviour, every dataset), a CSV with one row per approach and dataset,
+    and one dot plot of error by approach and scenario. Adds `matplotlib` as
+    a dependency. Plot colours were checked with the dataviz validator.
+  - `eval/run.py`: `python -m causal_agent.eval.run` generates the benchmark
+    under `data/benchmark/` (gitignored), runs the three approaches, logs
+    each question to `results/runs/`, reads ground truth only after an
+    approach has answered, and writes `docs/results/`. `--refute` also runs
+    every applicable refuter on each final method, cached on disk.
+  - `docs/decisions/002-estimators-baseline-tools.md` and
+    `003-evaluation-protocol.md`. Both quote the owner's stated requirements
+    and list separately the choices Claude made during implementation that
+    the owner has not reviewed.
+  - First real API calls (one dataset, `ds_001`): the request shape works.
+    The no-tools model solved a regression by hand from the correlation
+    table and landed within tolerance, so the shared summary is informative
+    enough for that baseline to be strong on linear data.
+
+  - Full evaluation run (2026-11-16, `claude-haiku-5-5`, 113 model calls).
+    Results are in `docs/results/` and summarized in `README.md`.
+    - Accuracy: all three approaches were within 0.10 SD on all 30 datasets.
+      The agent did not beat either baseline.
+    - Validity: adjustment set valid 30/30 for all three. Estimator valid:
+      fixed pipeline 30/30, agent 24/30, no-tools LLM 24/30 (self-reported).
+      The agent reported linear regression on every dataset, which is
+      misspecified on the 6 nonlinear-outcome datasets.
+    - The no-tools LLM computed a regression by hand from the correlation
+      table on every dataset; 8 of its answers equal the true effect exactly
+      because it rounds and the true effects are round numbers.
+    - No approach adjusted for the post-outcome column.
+    - Refutation (`--refute`, every applicable check on each final method):
+      no final estimate was inaccurate, so the catch rate is undefined. Two
+      false alarms: the data-subset check failed on two accurate
+      fixed-pipeline estimates (`ds_001`, `ds_027`). The agent refuted its
+      own final method on 10 of 30 questions; all passed.
+
+**Checkpoint 3 reviewed by the owner.** `step-2-baseline-tools` was merged
+into `main` through PR #3 after CI passed. `step-4-agent-eval` is PR #4,
+retargeted to `main`. The owner approved Benchmark v2 (see Next).
+
 ## Verification status
 
 - CI passed on PR #1 and PR #2. PR #2 ran all 505 tests on Linux, so the
   generator's tests are not sensitive to the Windows/Linux difference.
-- `step-2-baseline-tools`: local checks pass before every commit
-  (`uv run ruff check .`, `uv run ruff format --check .`, `uv run pytest`).
-  CI has not run on this branch.
+- CI passed on PR #3 (`step-2-baseline-tools`) and on PR #4
+  (`step-4-agent-eval`) while it was stacked on PR #3. Local checks pass
+  before every commit (`uv run ruff check .`, `uv run ruff format --check .`,
+  `uv run pytest`; 780 tests).
+- The agent loop and no-tools baseline are unit-tested with a scripted model
+  and were then run against the real API on all 30 datasets.
 
 ## Next
 
-1. Checkpoint 2 reached: the fixed baseline and the three tools are
-   implemented. Waiting for the owner's review. Do not start the LLM agent
-   before then.
-2. After approval: agent loop on the raw Anthropic SDK (8-step cap, cached
-   responses, logged tool calls), then the no-tools LLM baseline, then the
-   evaluation script, results table, plot and README.
+1. Merge PR #4 once CI passes against `main`, then create
+   `step-5-benchmark-v2` from the updated `main`.
+2. Benchmark v2, approved by the owner: 20 datasets (`ds_101` to `ds_120`)
+   with a nonlinear feature shared by the treatment and outcome equations,
+   varied non-round true effects and two zero-effect datasets. v1 datasets,
+   results and run settings stay as they are. Specs, validation tests and
+   ADR 004 are frozen before any LLM evaluation.
+3. Also approved: an estimator-disagreement check inside `refute_estimate`
+   (uncertainty method to be proposed to the owner first), a no-tools
+   ablation without the correlation matrix on v1 and v2, and removal of the
+   unused `dowhy` dependency.
+4. Stop for the owner's review before running the v2 LLM evaluation.
 
 ## Working rules set by the owner
 
@@ -127,9 +212,18 @@ Record each one when the part it belongs to is built.
 - ADR 001 keeps two items marked "approved without a stated reason"
   (5,000 rows; the nonlinear function forms). The owner chose to leave them
   marked that way. Do not fill them in.
-- Where the generated benchmark lives on disk, and whether it is committed or
-  regenerated from seeds. Decide when the evaluation script is built.
-- What the no-tools LLM baseline sees (proposal: one deterministic summary of
-  the public CSV, shared with the agent). Decide at step 4.
-- `dowhy` is a dependency but the estimators are implemented directly with
-  numpy and scikit-learn. Raise at checkpoint 2.
+- Three questions from checkpoint 2 are still unanswered (the owner replied
+  "continue"): add a refuter that targets the benchmark's failure modes or
+  report the zero catch rate; change the nonlinear functions or leave them;
+  keep or remove the unused `dowhy` dependency. The no-change option is in
+  force for each.
+- ADR 002 and ADR 003 each list choices Claude made during implementation
+  that the owner has not reviewed, and each has one item marked "approved
+  without a stated reason" (AIPW over an outcome model alone; the value 0.10
+  for the tolerance).
+- The shared summary includes the correlation matrix, which lets the no-tools
+  LLM work out a regression by hand. The owner never confirmed this design.
+- The benchmark does not separate the three approaches. Whether to make it
+  harder is the owner's call.
+- The generated benchmark lives in `data/benchmark/` and is gitignored; it is
+  regenerated from seeds on every run.

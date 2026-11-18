@@ -80,6 +80,28 @@ def test_baseline_sees_exactly_the_summary_the_agent_sees(small_benchmark) -> No
     assert baseline_llm.requests[0]["messages"] == agent_llm.requests[0]["messages"]
 
 
+def test_ablation_changes_only_the_summary(small_benchmark) -> None:
+    """Same model, system prompt and settings; the correlation table is gone."""
+    dataset_id = small_benchmark.dataset_id(Scenario.CONFOUNDED_LINEAR)
+    root = small_benchmark.public_only_root
+    baseline_llm, ablation_llm = ScriptedLLM([ANSWER]), ScriptedLLM([ANSWER])
+    run_no_tools(dataset_id, root, baseline_llm, SETTINGS)
+    run = run_no_tools(
+        dataset_id, root, ablation_llm, SETTINGS, include_correlations=False
+    )
+    assert run.outcome == "answered"
+
+    baseline, ablation = baseline_llm.requests[0], ablation_llm.requests[0]
+    assert {k: v for k, v in ablation.items() if k != "messages"} == {
+        k: v for k, v in baseline.items() if k != "messages"
+    }
+    full = baseline["messages"][0]["content"]
+    ablated = ablation["messages"][0]["content"]
+    assert "Pearson correlations" in full
+    assert "Pearson correlations" not in ablated
+    assert full.startswith(ablated)
+
+
 def test_baseline_request_reveals_nothing_private(small_benchmark) -> None:
     llm = ScriptedLLM([ANSWER])
     _run(small_benchmark, llm, Scenario.POST_OUTCOME_TRAP)

@@ -75,6 +75,14 @@ class EffectEstimate:
     n_treated: int
     diagnostics: dict[str, float] = field(default_factory=dict)
     warnings: tuple[str, ...] = ()
+    contributions: FloatArray | None = field(default=None, repr=False, compare=False)
+    """One value per row whose mean is the estimate.
+
+    Each value is the estimate plus that row's influence on it. Two estimators
+    run on the same rows can be compared row by row through these values, which
+    accounts for the two estimates being correlated. They are an internal
+    detail and are never part of a tool's output.
+    """
 
     @property
     def confidence_interval(self) -> tuple[float, float]:
@@ -226,4 +234,5 @@ def aipw_estimate(
             "n_folds": float(n_folds),
         },
         warnings=tuple(warnings),
+        contributions=psi,
     )

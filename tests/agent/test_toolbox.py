@@ -43,6 +43,34 @@ def test_exactly_three_tools_are_exposed() -> None:
     assert len(TOOLS) == 3
 
 
+def test_disagreement_check_is_part_of_refute_estimate_not_a_new_tool(
+    small_benchmark,
+) -> None:
+    definition = _definition("refute_estimate")
+    assert "estimator_disagreement" in json.dumps(definition["input_schema"])
+    assert "not proof of bias" in definition["description"]
+
+    covariates = [
+        column.name
+        for column in small_benchmark.datasets[
+            Scenario.CONFOUNDED_LINEAR
+        ].public.covariates
+    ]
+    outcome = _run(
+        small_benchmark,
+        "refute_estimate",
+        {
+            "estimator": "linear_regression",
+            "adjustment_set": covariates,
+            "refuter": "estimator_disagreement",
+        },
+    )
+    assert not outcome.is_error
+    assert outcome.output["verdict"] in ("disagreement", "agreement", "inconclusive")
+    assert outcome.output["comparison_estimator"] == "doubly_robust"
+    assert "passed" not in outcome.output
+
+
 def test_no_tool_accepts_code_or_a_dataset_id() -> None:
     for tool in tool_definitions():
         properties = tool["input_schema"]["properties"]

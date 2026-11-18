@@ -7,6 +7,7 @@ from causal_agent.bench.spec import (
     DEFAULT_N_ROWS,
     DEFAULT_OUTCOME_PREDICTOR_STRENGTH,
     DatasetSpec,
+    NonlinearFamily,
     Scenario,
 )
 
@@ -31,6 +32,37 @@ def test_defaults() -> None:
     assert spec.treatment_nonlinearity == 0.0
     assert spec.outcome_nonlinearity == 0.0
     assert spec.trap_strength == 0.0
+    assert spec.nonlinear_family is NonlinearFamily.V1
+
+
+@pytest.mark.parametrize(
+    ("scenario", "knobs"),
+    [
+        (Scenario.RANDOMIZED, {"outcome_nonlinearity": 1.0}),
+        (Scenario.CONFOUNDED_NONLINEAR, {"treatment_nonlinearity": 0.0}),
+        (Scenario.CONFOUNDED_NONLINEAR, {"outcome_nonlinearity": 0.0}),
+        (Scenario.CONFOUNDED_NONLINEAR, {}),
+    ],
+)
+def test_shared_family_is_accepted_with_a_nonlinear_side(
+    make_spec, scenario, knobs
+) -> None:
+    spec = make_spec(scenario, nonlinear_family="shared", **knobs)
+    assert spec.nonlinear_family is NonlinearFamily.SHARED
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    [Scenario.RANDOMIZED, Scenario.CONFOUNDED_LINEAR, Scenario.POST_OUTCOME_TRAP],
+)
+def test_shared_family_needs_a_nonlinear_side(make_spec, scenario) -> None:
+    with pytest.raises(ValidationError, match="nonlinear_family"):
+        make_spec(scenario, nonlinear_family="shared")
+
+
+def test_unknown_family_is_rejected(make_spec) -> None:
+    with pytest.raises(ValidationError):
+        make_spec(Scenario.CONFOUNDED_NONLINEAR, nonlinear_family="other")
 
 
 def test_spec_is_frozen(make_spec) -> None:

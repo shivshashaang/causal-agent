@@ -115,8 +115,9 @@ Made by Claude while building the tools. None was chosen by the owner.
   `timing`; orientations PC finds within a tier are marked `data`.
 - **No DoWhy.** The estimators and refuters are written directly with numpy
   and scikit-learn, so every step is short enough to read and all four
-  estimators can be refuted the same way. `dowhy` remains a dependency and is
-  unused.
+  estimators can be refuted the same way. `dowhy` was listed as a dependency
+  and never imported; the owner approved removing it after an audit found no
+  import in `src/` or `tests/`, and it was removed on 2026-11-16.
 - **Weighting, not matching.** `propensity_weighting` (normalized weights,
   logistic propensity model) is the only member of the logistic propensity
   family.

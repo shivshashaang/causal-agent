@@ -64,7 +64,14 @@ TOOLS: tuple[ToolSpec, ...] = (
             "the effect should vanish), random_common_cause (an added noise "
             "covariate), or data_subset (random 80% subsets). Reports whether "
             "the estimate held up. A pass is not evidence that the estimate is "
-            "unbiased."
+            "unbiased. A fourth check, estimator_disagreement, re-estimates the "
+            "effect on the same adjustment set with an estimator from the other "
+            "model family (doubly_robust, or linear_regression when the "
+            "original is doubly_robust) and returns disagreement, agreement or "
+            "inconclusive, judged against a bound of 0.10 outcome standard "
+            "deviations. Disagreement means the two estimators cannot both be "
+            "right; it does not say which one is wrong and is not proof of "
+            "bias. Agreement is not evidence of an unbiased estimate."
         ),
         input_model=RefuteEstimateInput,
         run=refute_estimate,

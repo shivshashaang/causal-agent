@@ -11,6 +11,7 @@ from causal_agent.tools.refute_estimate import (
     FAIL_THRESHOLD_IN_STANDARD_ERRORS,
     LIMITATIONS,
     N_REPETITIONS,
+    STABILITY_REFUTERS,
     RefuteEstimateInput,
     RefuteEstimateOutput,
     RefuterName,
@@ -18,7 +19,9 @@ from causal_agent.tools.refute_estimate import (
     verdict,
 )
 
-ALL_REFUTERS = list(RefuterName)
+# The three pass-or-fail checks. The estimator-disagreement check has a
+# three-way verdict and its own tests in test_estimator_disagreement.py.
+ALL_REFUTERS = list(STABILITY_REFUTERS)
 
 
 def _confounders(small_benchmark, scenario) -> tuple[str, ...]:

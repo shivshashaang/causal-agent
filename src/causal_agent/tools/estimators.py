@@ -89,6 +89,10 @@ def difference_in_means(
     standard_error = float(
         np.sqrt(treated.var(ddof=1) / len(treated) + control.var(ddof=1) / len(control))
     )
+    share = len(treated) / len(t)
+    influence = t * (y - treated.mean()) / share - (1 - t) * (y - control.mean()) / (
+        1 - share
+    )
     return EffectEstimate(
         estimate=estimate,
         standard_error=standard_error,
@@ -98,6 +102,7 @@ def difference_in_means(
             "treated_mean": float(treated.mean()),
             "control_mean": float(control.mean()),
         },
+        contributions=estimate + influence,
     )
 
 
@@ -122,8 +127,13 @@ def linear_regression(
     residual_variance = float(residuals @ residuals) / (n_rows - n_parameters)
     covariance = residual_variance * np.linalg.inv(design.T @ design)
     total = float(((y - y.mean()) ** 2).sum())
+    # Each row's influence on the treatment coefficient. The residuals are
+    # orthogonal to every design column, so these sum to zero.
+    treatment_row = np.linalg.inv(design.T @ design / n_rows)[1]
+    influence = (design * residuals[:, None]) @ treatment_row
+    estimate = float(coefficients[1])
     return EffectEstimate(
-        estimate=float(coefficients[1]),
+        estimate=estimate,
         standard_error=float(np.sqrt(covariance[1, 1])),
         n_rows=n_rows,
         n_treated=int(t.sum()),
@@ -131,6 +141,7 @@ def linear_regression(
             "r_squared": 1.0 - float(residuals @ residuals) / total,
             "n_parameters": float(n_parameters),
         },
+        contributions=estimate + influence,
     )
 
 
@@ -171,6 +182,16 @@ def propensity_weighting(
     )
     standard_error = float(influence.std(ddof=1) / np.sqrt(n_rows))
 
+    # Row contributions for comparing this estimate with another one. Unlike
+    # the standard error above, they allow for the propensities having been
+    # estimated: the part of each row's influence that the logistic model's
+    # score explains is removed. The result is centred so its mean is exactly
+    # zero.
+    score = (t - raw)[:, None] * np.column_stack([np.ones(n_rows), x])
+    explained = score @ np.linalg.lstsq(score, influence, rcond=None)[0]
+    adjusted = influence - explained
+    adjusted = adjusted - adjusted.mean()
+
     clipped_share = n_clipped / n_rows
     warnings: list[str] = []
     if clipped_share > CLIPPED_SHARE_WARNING:
@@ -192,6 +213,7 @@ def propensity_weighting(
             "largest_weight": float(np.max(np.where(t == 1, 1 / e, 1 / (1 - e)))),
         },
         warnings=tuple(warnings),
+        contributions=estimate + adjusted,
     )
 
 

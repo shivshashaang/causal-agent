@@ -1,0 +1,19 @@
+{
+ "Benchmark": "v2",
+ "Run date (UTC)": "2026-11-18",
+ "Datasets": 20,
+ "Dataset spec digest (SHA-256)": "e06a2ef6e3c56eca661f692b87960ee2c11768d3cfef4690d1c47f6eb5606867",
+ "Approaches": "fixed_pipeline, agent, no_tools, no_tools_no_correlations",
+ "Model requested": "claude-haiku-5-5",
+ "Model reported by the API": "claude-haiku-5-5",
+ "Effort": "medium",
+ "Max output tokens per response": 8000,
+ "Max model calls per agent question": 8,
+ "Tolerance (outcome SDs)": 0.1,
+ "Tolerances reported": "0.05, 0.1, 0.2",
+ "Refutation and disagreement checks run by the evaluation": true,
+ "Model calls made in this run": 98,
+ "Model calls replayed from cache": 0,
+ "Code commit": "9a6d836ed0009fea6cdec80e3ba43d66d33826d9",
+ "Working tree clean": true
+}

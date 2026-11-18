@@ -4,11 +4,12 @@ import json
 
 import pytest
 
-from causal_agent.agent.answer import ANSWER_FORMAT
+from causal_agent.agent.answer import ANSWER_FORMAT, FinalAnswer
 from causal_agent.agent.loop import (
     LAST_STEP_NOTICE,
     REPAIR_PROMPT,
     AgentRun,
+    ToolCallRecord,
     run_agent,
     system_prompt,
     write_run_log,
@@ -31,6 +32,50 @@ class ScriptedLLM:
         self.requests.append(json.loads(json.dumps(request)))
         response = self._responses.pop(0)
         return response(request) if callable(response) else response
+
+
+def test_disagreement_checks_are_kept_apart_from_pass_or_fail_refuters() -> None:
+    method = {"estimator": "linear_regression", "adjustment_set": ["x1"]}
+
+    def call(output, error=None):
+        return ToolCallRecord(
+            step=1, tool="refute_estimate", input={}, output=output, error=error
+        )
+
+    run = AgentRun(
+        dataset_id="ds_901",
+        model="model-a",
+        steps=2,
+        outcome="answered",
+        final_answer=FinalAnswer(
+            estimate=1.0,
+            estimator=EstimatorName.LINEAR_REGRESSION,
+            adjustment_set=("x1",),
+        ),
+        final_text="",
+        tool_calls=(
+            call({**method, "refuter": "placebo_treatment", "passed": True}),
+            call(
+                {**method, "refuter": "estimator_disagreement", "verdict": "agreement"}
+            ),
+            call(
+                {
+                    "estimator": "doubly_robust",
+                    "adjustment_set": ["x1"],
+                    "refuter": "estimator_disagreement",
+                    "verdict": "inconclusive",
+                }
+            ),
+            call(None, error="Invalid input."),
+        ),
+        input_tokens=0,
+        output_tokens=0,
+    )
+    assert run.refutations_of_final_method() == {"placebo_treatment": True}
+    assert run.disagreement_checks() == (
+        ("linear_regression", "agreement"),
+        ("doubly_robust", "inconclusive"),
+    )
 
 
 def tool_call(name: str, tool_input: dict, call_id: str = "toolu_1") -> dict:

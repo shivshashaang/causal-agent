@@ -2,7 +2,7 @@
 
 Read this at the start of every session. Updated after every commit.
 
-Last updated: 2026-11-16
+Last updated: 2026-11-18
 
 ## Done
 
@@ -137,8 +137,129 @@ Last updated: 2026-11-16
       own final method on 10 of 30 questions; all passed.
 
 **Checkpoint 3 reviewed by the owner.** `step-2-baseline-tools` was merged
-into `main` through PR #3 after CI passed. `step-4-agent-eval` is PR #4,
-retargeted to `main`. The owner approved Benchmark v2 (see Next).
+into `main` through PR #3 and `step-4-agent-eval` through PR #4, each after
+CI passed. The owner approved Benchmark v2 (see Next).
+
+- **Step 5, Benchmark v2.** On branch `step-5-benchmark-v2` (not pushed).
+  - Removed the `dowhy` dependency. It was never imported in `src/` or
+    `tests/`; every package the code imports is a direct dependency.
+  - `bench/fingerprint.py` and `tests/bench/test_frozen.py`: v1 is now
+    frozen by a recorded spec digest and one fingerprint per dataset
+    (`tests/bench/frozen/v1.json`). The record was written from the untouched
+    generator, before any v2 change, and the regenerated public files were
+    byte-identical to the ones the v1 evaluation used. Until this commit
+    there was no stored hash: the older test only checked that writing twice
+    gives the same files. Continuous columns are compared by weighted sums
+    with a 1e-9 relative tolerance, not by a byte hash, because `exp` and
+    `tanh` can differ in the last bit between machines.
+  - `bench/spec.py` and `bench/equations.py`: a second nonlinear family.
+    `nonlinear_family` is `v1` by default (the original functions) or
+    `shared`, where the treatment index and the outcome index use the same
+    function `(c1^2 - 1)/sqrt(2) + c1*c2`. `shared` is rejected unless
+    `lambda_T` or `lambda_Y` is positive. `reference_sample(spec)` exposes
+    the fixed-seed 1,000,000-row sample. v1 public files are byte-identical
+    after this change; v1 truth files differ only by the new spec field
+    `nonlinear_family: "v1"`.
+  - `bench/suite.py`: `benchmark_v2_specs()` returns the 20 v2 specs,
+    `ds_101` to `ds_120`, master seed 2. Randomized 2, confounded linear 4,
+    confounded nonlinear 10 (outcome side only 2, treatment side only 2, both
+    sides 6), post-outcome trap 4. True effects are a seeded draw from
+    Uniform(-2, 2) rounded to two decimals; two datasets picked by a seeded
+    draw are set to zero. That draw put both zeros on trap datasets
+    (`ds_106`, `ds_113`); it was not redrawn.
+    `tests/bench/test_suite_v2.py` checks shape, effects, the v1 public
+    schema, valid adjustment sets, overlap (same thresholds as v1) and that a
+    regression given the true curve recovers the effect.
+  - `bench/design.py`: `linear_regression_bias(spec)` records how far a
+    linear regression on all pre-treatment covariates would land from the
+    true effect with unlimited data (1,000,000-row reference sample, robust
+    standard error). Recorded only; the owner ruled that it must not be a
+    dataset selection gate. Tests assert it only where theory fixes it at
+    zero (linear outcome or randomized treatment).
+  - **Benchmark v2 is frozen.** `tests/bench/frozen/v2.json` holds the spec
+    digest (`e06a2ef6...6867`) and a fingerprint per dataset;
+    `docs/decisions/004-benchmark-v2.md` holds the design, the full spec
+    table, the validation list and the freeze rule. At the freeze no LLM
+    approach and no doubly robust estimate had been run on any v2 dataset.
+    The six "both sides" datasets have a recorded linear-regression bias of
+    0.100 to 0.502 SD; every other v2 dataset is at or below 0.003 SD.
+
+  - No-tools ablation. `describe_dataset` and `run_no_tools` take
+    `include_correlations` (default true, so the original baseline's prompt
+    is unchanged). The evaluation has a fourth approach,
+    `no_tools_no_correlations`, listed under `ABLATIONS`: it never runs by
+    default and is labelled "(ablation)" in every table and in the plot.
+    `eval/run.py` now refuses to write into a directory that already holds a
+    report unless `--overwrite` is passed, and takes `--report-dir` and
+    `--title`, so the published v1 results cannot be replaced by accident.
+
+  - Ablation run on Benchmark v1 (2026-11-16, `claude-haiku-5-5`, 30 new
+    model calls; the original no-tools baseline replayed from cache with 0
+    new calls, which confirms its prompt is unchanged). Results are in
+    `docs/results/v1-ablation/`. The original files in `docs/results/` are
+    byte-identical to before.
+    - Without the correlation table the no-tools model was within 0.10 SD on
+      18 of 30 datasets (13 at 0.05, 23 at 0.20; mean absolute error 0.124
+      SD). By scenario: randomized 6/6, confounded linear 4/9, confounded
+      nonlinear 6/9, trap 2/6.
+    - It named a valid adjustment set on all 30. The three existing
+      refutation checks flagged 0 of its 12 inaccurate answers.
+  - `README.md`: the v1 results are labelled Benchmark v1 and kept as
+    written; the ablation is a labelled addendum; a short Benchmark v2
+    section says v2 is frozen and not yet run.
+
+  - The owner approved the frozen v2 benchmark, the paired standard error
+    and the 0.10 SD materiality bound, and authorized the final
+    implementation and one v2 evaluation. `step-5-benchmark-v2` is pushed as
+    PR #5.
+  - Estimator-disagreement check (ADR 005). Every estimator now returns one
+    contribution per row whose mean is its estimate. `refute_estimate` has a
+    fourth check, `estimator_disagreement`: it compares the estimate with one
+    from the other model family on the same adjustment set, computes a paired
+    standard error from the row contributions, and returns `disagreement`,
+    `agreement` or `inconclusive` against a bound of 0.10 outcome SDs. The
+    three original checks, their outputs and their cached results are
+    unchanged (`STABILITY_REFUTERS`). The agent can call the new check, so
+    its toolset now differs from the one used for the v1 results (commit
+    `67ee865`).
+  - Evaluation runner for v2. `--benchmark v1|v2` picks the specs, the data
+    directory (`data/benchmark`, `data/benchmark_v2`) and the default report
+    directory (`docs/results`, `docs/results/v2`). With `--refute` the
+    evaluation also runs the disagreement check on every final method and
+    reports detected problems, false alarms, misses and inconclusive results
+    in their own table. Every report now has a table of model calls, tool
+    calls, tool errors and tokens, a breakdown by finer design, and a run
+    record (`run_record.json`: model requested and model reported by the API,
+    settings, spec digest, commit, whether the working tree was clean).
+
+  - **Benchmark v2 run** (one run, 2026-11-18 UTC, `claude-haiku-5-5` as
+    requested and as reported by the API, 98 new model calls, code commit
+    `9a6d836`, clean working tree, spec digest `e06a2ef6...6867`). Results
+    are in `docs/results/v2/`, including `run_record.json`. A first attempt
+    was stopped by Claude Code for low system memory after the fixed
+    pipeline had answered two datasets and before any model call; the owner
+    approved the restart, which ran everything from the start.
+    - Within 0.10 SD: fixed pipeline 20/20, agent 16/20, no-tools LLM 16/20,
+      ablation 10/20. **The agent lost to the fixed pipeline** and tied the
+      no-tools LLM. All four of the agent's misses are on the six
+      "nonlinear on both sides" datasets, where it reported linear
+      regression.
+    - The agent ran the disagreement check on 12 of 20 questions. On each
+      of its four misses the check said `disagreement`; the agent read it
+      and still reported linear regression, calling the doubly robust
+      estimate an outlier.
+    - The disagreement check run by the evaluation: on agent answers it
+      flagged 4 of 4 inaccurate and 0 of 16 accurate (1 inconclusive); on
+      fixed-pipeline answers it flagged 4 of 20 accurate ones, on the four
+      datasets where the comparison estimator (linear regression) is the
+      biased one. The three original checks flagged no inaccurate estimate
+      of any approach.
+  - Final documentation: `README.md` has a summary across both benchmarks,
+    the v1 results as first published, the v2 results, the comparison with
+    both baselines, the ablation findings, a refutation failure analysis,
+    the architecture, how to reproduce, and limitations. ADR 003 records the
+    additions to the protocol, ADR 004 an "After the run" note, ADR 005 the
+    measured behaviour of the check.
 
 ## Verification status
 
@@ -147,24 +268,20 @@ retargeted to `main`. The owner approved Benchmark v2 (see Next).
 - CI passed on PR #3 (`step-2-baseline-tools`) and on PR #4
   (`step-4-agent-eval`) while it was stacked on PR #3. Local checks pass
   before every commit (`uv run ruff check .`, `uv run ruff format --check .`,
-  `uv run pytest`; 780 tests).
+  `uv run pytest`).
+- `step-5-benchmark-v2` is PR #5. CI passed on it at `9a6d836`. Locally
+  1,121 tests pass. The full suite took 24 minutes once while the machine was
+  short of memory and about 5 minutes otherwise; on CI it takes about 2.
 - The agent loop and no-tools baseline are unit-tested with a scripted model
-  and were then run against the real API on all 30 datasets.
+  and were then run against the real API: 30 v1 datasets, 20 v2 datasets.
 
 ## Next
 
-1. Merge PR #4 once CI passes against `main`, then create
-   `step-5-benchmark-v2` from the updated `main`.
-2. Benchmark v2, approved by the owner: 20 datasets (`ds_101` to `ds_120`)
-   with a nonlinear feature shared by the treatment and outcome equations,
-   varied non-round true effects and two zero-effect datasets. v1 datasets,
-   results and run settings stay as they are. Specs, validation tests and
-   ADR 004 are frozen before any LLM evaluation.
-3. Also approved: an estimator-disagreement check inside `refute_estimate`
-   (uncertainty method to be proposed to the owner first), a no-tools
-   ablation without the correlation matrix on v1 and v2, and removal of the
-   unused `dowhy` dependency.
-4. Stop for the owner's review before running the v2 LLM evaluation.
+1. The owner authorized merging PR #5 once CI passes on its final commit.
+2. Nothing else is planned. Possible follow-ups, only if the owner asks: a
+   decision rule for the agent when the disagreement check fires, hidden
+   confounding, effects that vary between units, more seeds per dataset,
+   other models.
 
 ## Working rules set by the owner
 
@@ -174,13 +291,17 @@ retargeted to `main`. The owner approved Benchmark v2 (see Next).
 - No Claude or AI co-author attribution in commit messages.
 - Do not push or merge without the owner's say-so.
 - Stop for review at three checkpoints: generator and metadata (done), tools
-  and baselines, full evaluation.
+  and baselines (done), full evaluation (done).
+- Benchmark v2: do not tune datasets based on which approach performs better.
+  The specs are frozen and must not change after any approach has run.
+- Preserve all Benchmark v1 results, documentation and run settings. Never
+  overwrite `docs/results/` from a v2 or ablation run.
 - Do not silently resolve major causal-inference decisions. Report design
   deviations at each checkpoint.
 
-## Approved decisions not yet recorded as ADRs
+## Approved decisions from the design stage
 
-Record each one when the part it belongs to is built.
+All of these are now recorded in ADR 002 and ADR 003.
 
 - **ATE tolerance:** an estimate is correct if it is within 0.10 standard
   deviations of `Y` of the true ATE. Also report mean absolute error and
@@ -212,18 +333,21 @@ Record each one when the part it belongs to is built.
 - ADR 001 keeps two items marked "approved without a stated reason"
   (5,000 rows; the nonlinear function forms). The owner chose to leave them
   marked that way. Do not fill them in.
-- Three questions from checkpoint 2 are still unanswered (the owner replied
-  "continue"): add a refuter that targets the benchmark's failure modes or
-  report the zero catch rate; change the nonlinear functions or leave them;
-  keep or remove the unused `dowhy` dependency. The no-change option is in
-  force for each.
+- The three questions from checkpoint 2 were answered at the checkpoint 3
+  review: add an estimator-disagreement check to `refute_estimate`; leave the
+  v1 nonlinear functions alone and add a second family for v2; remove
+  `dowhy`.
 - ADR 002 and ADR 003 each list choices Claude made during implementation
   that the owner has not reviewed, and each has one item marked "approved
   without a stated reason" (AIPW over an outcome model alone; the value 0.10
   for the tolerance).
+- ADR 004 and ADR 005 each list items "approved without a stated reason"
+  (option B, the size and composition of v2, the two zero-effect datasets;
+  comparing estimates over a specification test, the 0.10 SD bound). Do not
+  fill them in without the owner's words.
 - The shared summary includes the correlation matrix, which lets the no-tools
-  LLM work out a regression by hand. The owner never confirmed this design.
-- The benchmark does not separate the three approaches. Whether to make it
-  harder is the owner's call.
-- The generated benchmark lives in `data/benchmark/` and is gitignored; it is
-  regenerated from seeds on every run.
+  LLM work out a regression by hand. The owner never confirmed this design;
+  the ablation measures its effect and the original baseline is unchanged.
+- The generated benchmarks live in `data/benchmark/` and `data/benchmark_v2/`
+  and are gitignored; they are regenerated from seeds on every run and
+  checked against the frozen fingerprints by the tests.

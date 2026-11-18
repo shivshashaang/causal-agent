@@ -14,6 +14,7 @@ TIMING_LEGEND = (
     "treatment = the treatment itself; outcome = the outcome itself; "
     "post_outcome = measured after the outcome was observed."
 )
+CORRELATION_HEADING = "Pearson correlations"
 
 
 def _table(rows: list[list[str]]) -> str:
@@ -30,8 +31,14 @@ def _number(value: float) -> str:
     return f"{value:.3f}"
 
 
-def describe_dataset(frame: pd.DataFrame, metadata: PublicDataset) -> str:
-    """Summarize the columns, the two treatment groups and the correlations."""
+def describe_dataset(
+    frame: pd.DataFrame, metadata: PublicDataset, include_correlations: bool = True
+) -> str:
+    """Summarize the columns, the two treatment groups and the correlations.
+
+    `include_correlations=False` leaves out the correlation table and nothing
+    else. Only the no-tools ablation uses it.
+    """
     treatment, outcome = metadata.treatment, metadata.outcome
     names = [column.name for column in metadata.columns]
 
@@ -73,24 +80,21 @@ def describe_dataset(frame: pd.DataFrame, metadata: PublicDataset) -> str:
             [name, *(_number(correlations.loc[name, other]) for other in names)]
         )
 
-    return "\n".join(
-        [
-            f"Dataset: {metadata.dataset_id}",
-            f"Question: {metadata.question}",
-            f"Rows: {metadata.n_rows}",
-            f"Treatment column: {treatment} (binary, 1 = treated).",
-            f"Outcome column: {outcome}.",
-            "",
-            "Columns",
-            _table(column_rows),
-            TIMING_LEGEND,
-            "",
-            f"Treatment groups: {len(treated)} treated rows, "
-            f"{len(control)} control rows.",
-            "Column means by treatment group",
-            _table(group_rows),
-            "",
-            "Pearson correlations",
-            _table(correlation_rows),
-        ]
-    )
+    lines = [
+        f"Dataset: {metadata.dataset_id}",
+        f"Question: {metadata.question}",
+        f"Rows: {metadata.n_rows}",
+        f"Treatment column: {treatment} (binary, 1 = treated).",
+        f"Outcome column: {outcome}.",
+        "",
+        "Columns",
+        _table(column_rows),
+        TIMING_LEGEND,
+        "",
+        f"Treatment groups: {len(treated)} treated rows, {len(control)} control rows.",
+        "Column means by treatment group",
+        _table(group_rows),
+    ]
+    if include_correlations:
+        lines += ["", CORRELATION_HEADING, _table(correlation_rows)]
+    return "\n".join(lines)

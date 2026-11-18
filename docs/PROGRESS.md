@@ -2,7 +2,7 @@
 
 Read this at the start of every session. Updated after every commit.
 
-Last updated: 2026-11-16
+Last updated: 2026-11-18
 
 ## Done
 
@@ -222,9 +222,6 @@ CI passed. The owner approved Benchmark v2 (see Next).
     unchanged (`STABILITY_REFUTERS`). The agent can call the new check, so
     its toolset now differs from the one used for the v1 results (commit
     `67ee865`).
-
-Still to do:
-
   - Evaluation runner for v2. `--benchmark v1|v2` picks the specs, the data
     directory (`data/benchmark`, `data/benchmark_v2`) and the default report
     directory (`docs/results`, `docs/results/v2`). With `--refute` the
@@ -257,15 +254,12 @@ Still to do:
       datasets where the comparison estimator (linear regression) is the
       biased one. The three original checks flagged no inaccurate estimate
       of any approach.
-
-1. Done: the estimator-disagreement check.
-2. Done: a way to run the evaluation on v2 (`data/benchmark_v2`, `docs/results/v2`),
-   with the ablation as a fourth approach and the v2 spec digest and freeze
-   commit recorded in the report.
-3. The v2 run, the v2 report and README section, and ADR updates (the agent's
-   toolset differs between v1 and v2).
-4. Push `step-5-benchmark-v2` and open a pull request, when the owner says
-   so.
+  - Final documentation: `README.md` has a summary across both benchmarks,
+    the v1 results as first published, the v2 results, the comparison with
+    both baselines, the ablation findings, a refutation failure analysis,
+    the architecture, how to reproduce, and limitations. ADR 003 records the
+    additions to the protocol, ADR 004 an "After the run" note, ADR 005 the
+    measured behaviour of the check.
 
 ## Verification status
 
@@ -274,23 +268,20 @@ Still to do:
 - CI passed on PR #3 (`step-2-baseline-tools`) and on PR #4
   (`step-4-agent-eval`) while it was stacked on PR #3. Local checks pass
   before every commit (`uv run ruff check .`, `uv run ruff format --check .`,
-  `uv run pytest`; 780 tests).
+  `uv run pytest`).
+- `step-5-benchmark-v2` is PR #5. CI passed on it at `9a6d836`. Locally
+  1,121 tests pass. The full suite took 24 minutes once while the machine was
+  short of memory and about 5 minutes otherwise; on CI it takes about 2.
 - The agent loop and no-tools baseline are unit-tested with a scripted model
-  and were then run against the real API on all 30 datasets.
+  and were then run against the real API: 30 v1 datasets, 20 v2 datasets.
 
 ## Next
 
-1. Done: PR #4 merged, `step-5-benchmark-v2` created from `main`.
-2. Benchmark v2, approved by the owner: 20 datasets (`ds_101` to `ds_120`)
-   with a nonlinear feature shared by the treatment and outcome equations,
-   varied non-round true effects and two zero-effect datasets. v1 datasets,
-   results and run settings stay as they are. Specs, validation tests and
-   ADR 004 are frozen before any LLM evaluation.
-3. Also approved: an estimator-disagreement check inside `refute_estimate`
-   (uncertainty method to be proposed to the owner first), a no-tools
-   ablation without the correlation matrix on v1 and v2, and removal of the
-   unused `dowhy` dependency.
-4. Stop for the owner's review before running the v2 LLM evaluation.
+1. The owner authorized merging PR #5 once CI passes on its final commit.
+2. Nothing else is planned. Possible follow-ups, only if the owner asks: a
+   decision rule for the agent when the disagreement check fires, hidden
+   confounding, effects that vary between units, more seeds per dataset,
+   other models.
 
 ## Working rules set by the owner
 
@@ -308,9 +299,9 @@ Still to do:
 - Do not silently resolve major causal-inference decisions. Report design
   deviations at each checkpoint.
 
-## Approved decisions not yet recorded as ADRs
+## Approved decisions from the design stage
 
-Record each one when the part it belongs to is built.
+All of these are now recorded in ADR 002 and ADR 003.
 
 - **ATE tolerance:** an estimate is correct if it is within 0.10 standard
   deviations of `Y` of the true ATE. Also report mean absolute error and
@@ -350,9 +341,13 @@ Record each one when the part it belongs to is built.
   that the owner has not reviewed, and each has one item marked "approved
   without a stated reason" (AIPW over an outcome model alone; the value 0.10
   for the tolerance).
+- ADR 004 and ADR 005 each list items "approved without a stated reason"
+  (option B, the size and composition of v2, the two zero-effect datasets;
+  comparing estimates over a specification test, the 0.10 SD bound). Do not
+  fill them in without the owner's words.
 - The shared summary includes the correlation matrix, which lets the no-tools
-  LLM work out a regression by hand. The owner never confirmed this design.
-- The benchmark does not separate the three approaches. Whether to make it
-  harder is the owner's call.
-- The generated benchmark lives in `data/benchmark/` and is gitignored; it is
-  regenerated from seeds on every run.
+  LLM work out a regression by hand. The owner never confirmed this design;
+  the ablation measures its effect and the original baseline is unchanged.
+- The generated benchmarks live in `data/benchmark/` and `data/benchmark_v2/`
+  and are gitignored; they are regenerated from seeds on every run and
+  checked against the frozen fingerprints by the tests.

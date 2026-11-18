@@ -153,6 +153,28 @@ Made by Claude. None was chosen by the owner.
 - **The evaluation runs the check on every final method**, cached on disk,
   and reports it in its own table.
 
+## Measured on Benchmark v2
+
+One run, 20 datasets, thresholds as above and not changed afterwards. Run by
+the evaluation on every final method:
+
+| Approach | Detected | False alarm | Missed | Agreement, accurate | Inconclusive |
+|---|---|---|---|---|---|
+| Agent | 4/4 | 0/16 | 0/4 | 15/16 | 1 (accurate) |
+| Fixed pipeline | none inaccurate | 4/20 | none inaccurate | 15/20 | 1 (accurate) |
+| LLM, no tools | 4/4 | 0/16 | 0/4 | 15/16 | 1 (accurate) |
+| LLM, no tools, no correlations | 3/10 | 1/10 | 7/10 | 7/10 | 2 (accurate) |
+
+- The fixed pipeline's four false alarms are on the four datasets where its
+  doubly robust estimate was accurate and the comparison, linear regression,
+  was biased. The check does not say which estimator is wrong.
+- The ablation's misses are mostly arithmetic errors made under a correctly
+  named method. The check runs the named method, not the reported number, so
+  it found only 3 of 10.
+- The agent called the check itself on 12 of 20 questions. It got
+  `disagreement` on all four of its inaccurate answers, and each time it
+  reported the linear regression anyway.
+
 ## Tradeoffs
 
 - **It cannot detect a wrong adjustment set.** Both estimators share the set.

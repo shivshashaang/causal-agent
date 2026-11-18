@@ -159,3 +159,39 @@ Made by Claude. The owner has not reviewed them.
   results describe one draw of the model's behaviour.
 - **30 datasets.** Per-scenario counts are small (6 or 9), so differences of
   one or two datasets are not meaningful.
+
+## Additions after the checkpoint 3 review (2026-11-16 and 2026-11-17)
+
+The owner asked for these after reviewing the v1 results. The protocol above
+is unchanged for v1; its published results were not rerun or replaced.
+
+Requested by the owner, in the owner's words:
+
+- "Add a separately reported ablation without the correlation matrix, keeping
+  the rest of its permitted information unchanged." and "Do not present the
+  ablation as replacing the original baseline." The approach
+  `no_tools_no_correlations` runs only when named, and every table and plot
+  labels it "(ablation)".
+- "Run an additional no-tools baseline without the correlation matrix on v1
+  and v2." Done: `docs/results/v1-ablation/` and `docs/results/v2/`.
+- "Record the exact model identifier, run configuration, dataset digest, and
+  commit hash." Every report now carries a run record (`run_record.json`).
+- "Report model calls, tool calls, errors, and inconclusive checks." Every
+  report has a table of model calls, tool calls, tool errors and tokens; the
+  disagreement table counts inconclusive results on their own.
+- "Separate detected problems, false alarms, and inconclusive results." The
+  estimator-disagreement check (ADR 005) is reported in that form.
+
+Choices made by Claude. The owner has not reviewed them:
+
+- **A report is never replaced by accident.** The runner stops before doing
+  anything if the report directory already holds a report, unless
+  `--overwrite` is passed.
+- **The disagreement check is reported apart from the original checks.** The
+  original three keep their pass-or-fail table, so v1 and v2 numbers for them
+  mean the same thing.
+- **A finer design breakdown and the recorded linear-regression bias** appear
+  in the v2 report. Both come from the private spec and are attached after
+  the approach has answered.
+- **The model identifier is taken from the API's responses** as well as from
+  the settings, so the record shows what actually answered.

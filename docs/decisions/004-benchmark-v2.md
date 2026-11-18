@@ -238,6 +238,21 @@ Made by Claude. None was chosen by the owner.
 - **The trap scenario keeps a linear base**, as in v1, so the existing spec
   rule for that scenario is unchanged.
 
+## After the run
+
+Added after the one v2 run (2026-11-18 UTC, code commit `9a6d836`). Nothing
+above was changed after the run.
+
+- The specs were not changed. The run record's spec digest matches the
+  frozen digest at the top of this record.
+- The run is reported in `docs/results/v2/` and in the README. Within 0.10
+  SD: fixed pipeline 20/20, agent 16/20, no-tools LLM 16/20, ablation 10/20.
+  Every miss by the agent and the no-tools LLM is on a "nonlinear on both
+  sides" dataset.
+- A first attempt was stopped by Claude Code for low system memory after the
+  fixed pipeline had answered two datasets and before any model call. The
+  owner approved a restart, which ran from the beginning.
+
 ## Tradeoffs
 
 - **v2 targets one failure.** It is built around the case that breaks linear

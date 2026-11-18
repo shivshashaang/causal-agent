@@ -235,6 +235,29 @@ Still to do:
     record (`run_record.json`: model requested and model reported by the API,
     settings, spec digest, commit, whether the working tree was clean).
 
+  - **Benchmark v2 run** (one run, 2026-11-18 UTC, `claude-haiku-5-5` as
+    requested and as reported by the API, 98 new model calls, code commit
+    `9a6d836`, clean working tree, spec digest `e06a2ef6...6867`). Results
+    are in `docs/results/v2/`, including `run_record.json`. A first attempt
+    was stopped by Claude Code for low system memory after the fixed
+    pipeline had answered two datasets and before any model call; the owner
+    approved the restart, which ran everything from the start.
+    - Within 0.10 SD: fixed pipeline 20/20, agent 16/20, no-tools LLM 16/20,
+      ablation 10/20. **The agent lost to the fixed pipeline** and tied the
+      no-tools LLM. All four of the agent's misses are on the six
+      "nonlinear on both sides" datasets, where it reported linear
+      regression.
+    - The agent ran the disagreement check on 12 of 20 questions. On each
+      of its four misses the check said `disagreement`; the agent read it
+      and still reported linear regression, calling the doubly robust
+      estimate an outlier.
+    - The disagreement check run by the evaluation: on agent answers it
+      flagged 4 of 4 inaccurate and 0 of 16 accurate (1 inconclusive); on
+      fixed-pipeline answers it flagged 4 of 20 accurate ones, on the four
+      datasets where the comparison estimator (linear regression) is the
+      biased one. The three original checks flagged no inaccurate estimate
+      of any approach.
+
 1. Done: the estimator-disagreement check.
 2. Done: a way to run the evaluation on v2 (`data/benchmark_v2`, `docs/results/v2`),
    with the ablation as a fourth approach and the v2 spec digest and freeze
